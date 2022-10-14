@@ -1,0 +1,8 @@
+{
+    "networktables_host": "10.0.0.2",
+    "sensor_id": "apriltag",
+    "video_device":0,
+    "calibration":"/home/pi/camera.json",
+    "tag_size": 160,
+    "tag_family": "tag36h11"
+}
