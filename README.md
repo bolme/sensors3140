@@ -8,13 +8,23 @@ Apriltag targets are going to be new for the 2023 First Robotics Compitition acc
 
 # Installation
 
-## Install from source
-
-*Coming Soon*
-
 ## Install from github
+Install the code directly from github.  This should put the code in your python environment but will not allow modification.
 
-*Coming Soon*
+***You will still need to install camera.json calibration and apriltag.json files from the github repository.***
+
+python3 -m pip install git+https://github.com/FRC-Team-3140/sensors3140
+
+
+## Install from source
+This is useful for development.  The pip command install a link to your local copy of the python code which allows the code to be modified and updated easily.
+
+```
+git clone https://github.com/FRC-Team-3140/sensors3140.git
+cd sensors3140
+python3 -m pip install -e .
+```
+
 
 # Camera Calibration
 
