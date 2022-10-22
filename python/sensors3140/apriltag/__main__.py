@@ -12,11 +12,11 @@ import sensors3140
 
 
 def parseOptions():
-    useage = "python3 -m sensor3140.calibrate.calibrate_camera [options]"
+    useage = "python3 -m sensor3140.apriltag [options]"
     parser = optparse.OptionParser(useage,version=sensors3140.__version__)
 
     parser.add_option("-c", "--config", dest="config", default='apriltag.json',
-                  help="write report to this json FILE", metavar="FILE")
+                  help="specify an apriltag.json file for this sensor", metavar="FILE")
 
     parser.add_option("-d", "--display", dest="display", default=False, action='store_true',
                   help="display a window with live video")
