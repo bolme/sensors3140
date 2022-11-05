@@ -17,7 +17,7 @@ A number of dependencies may be required. The following is suggested for Raspber
 On Raspberry Pi and Nvidia Jetsons this software can typically be installed with the apt utility.  Here we suggest getting development libraries which may be required to install some packages from source.  Nvidia Jetson platforms may have specialized installation procedures for libraries like opencv to be accelerated by the the Cuda GPU.
 
 ```
-apt install gcc cmake libopencv-dev python3-dev python3-opencv python3-numpy python3-scipy python3-sklearn python3-skimage python3-pandas
+sudo apt install gcc cmake libopencv-dev python3-dev python3-opencv python3-numpy python3-scipy python3-sklearn python3-skimage python3-pandas python3-pip
 ```
 
 ## Install from github
@@ -25,8 +25,9 @@ Install the code directly from github.  This should put the code in your python 
 
 ***You will still need to install camera.json calibration and apriltag.json files from the github repository.***
 
+```
 python3 -m pip install git+https://github.com/FRC-Team-3140/sensors3140
-
+```
 
 ## Install from source
 This is useful for development.  The pip command install a link to your local copy of the python code which allows the code to be modified and updated easily.
