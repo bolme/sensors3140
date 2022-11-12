@@ -57,7 +57,8 @@ tags_table = sensor_table.getSubTable('tags')
 
 camera_param = calib['parameters']
 
-det_options = apriltag.DetectorOptions(families="tag36h11")
+det_options = apriltag.DetectorOptions(families=config['tag_family'])
+
 detector = apriltag.Detector(det_options)
 
 cap = cv2.VideoCapture(0)
@@ -102,7 +103,7 @@ while cap.grab():
             ptA = (int(ptA[0]), int(ptA[1]))
 
             # draw the bounding box of the AprilTag detection
-            cv2.line(image, ptA, ptB, (0, 255, 0), 2)
+            cv2.line(image, ptA, ptB, (255, 0, 0), 2)
             cv2.line(image, ptB, ptC, (0, 255, 0), 2)
             cv2.line(image, ptC, ptD, (0, 255, 0), 2)
             cv2.line(image, ptD, ptA, (0, 255, 0), 2)
@@ -152,7 +153,7 @@ while cap.grab():
         sensor_table.putNumber('update_hz',1.0/(current_time-prev_time))
 
         if options.display:
-            cv2.putText(image,"Mode: %d X %d @ %d fps"%(calib['frame_size'][0],calib['frame_size'][1],calib['fps'],), (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            cv2.putText(image,"Mode: %d X %d @ %d fps %s"%(calib['frame_size'][0],calib['frame_size'][1],calib['fps'],config['tag_family'],), (5, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             cv2.putText(image,"AT Speed: TIME: %0.1f ms  FPS: %0.2f"%(1000*detect_time,1.0/(current_time-prev_time)), (5, 40), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
             cv2.imshow('img',image)

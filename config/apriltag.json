@@ -3,6 +3,6 @@
     "sensor_id": "apriltag",
     "video_device":0,
     "calibration":"/home/pi/camera.json",
-    "tag_size": 160,
-    "tag_family": "tag36h11"
+    "tag_size": 152.4,
+    "tag_family": "tag16h5"
 }
