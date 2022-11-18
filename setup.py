@@ -9,7 +9,12 @@ setup(name='Sensors3140',
       author_email='dbolme@gmail.com',
       #url='https://www.python.org/sigs/distutils-sig/',
       package_dir={'':'python',},
-      packages=['sensors3140', 'sensors3140.calibrate', 'sensors3140.apriltag'],
+      packages=[
+            'sensors3140', 
+            'sensors3140.calibrate', 
+            'sensors3140.apriltag', 
+            'sensors3140.rplidar',
+      ],
       install_requires=[
             'opencv-python',
             'apriltag',
