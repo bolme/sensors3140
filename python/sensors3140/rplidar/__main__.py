@@ -1,17 +1,15 @@
-#import cv2
 import rplidar
 import numpy as np
-#import os
-#import skimage.io
 from networktables import NetworkTables
 import json
 import time
 import socket
 import optparse
 import sensors3140
-import csv
 import traceback
 
+# An alternate implementation in java from team 4915
+https://github.com/Spartronics4915/SpartronicsLib/blob/master/src/main/java/com/spartronics4915/lib/hardware/sensors/RPLidarA1.java
 
 # INSTALL
 # pip install rplidar-roboticia
@@ -172,6 +170,7 @@ except:
 
 if rpl != None:
     print('Disconnecting from rplidar sensor.')
+    rpl.stop()
     rpl.disconnect()
     time.sleep(1)
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=rplidar
+
+[Service]
+ExecStart=/usr/bin/python3 -m sensors3140.rplidar --config=/home/pi/rplidar.json
+User=pi
+Group=pi
+
+[Install]
+WantedBy=multi-user.target
+
+
