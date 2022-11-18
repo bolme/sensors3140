@@ -17,6 +17,7 @@ A number of dependencies may be required. The following is suggested for Raspber
 On Raspberry Pi and Nvidia Jetsons this software can typically be installed with the apt utility.  Here we suggest getting development libraries which may be required to install some packages from source.  Nvidia Jetson platforms may have specialized installation procedures for libraries like opencv to be accelerated by the the Cuda GPU.
 
 ```
+sudo apt update
 sudo apt install gcc cmake libopencv-dev python3-dev python3-opencv python3-numpy python3-scipy python3-sklearn python3-skimage python3-pandas python3-pip
 ```
 
@@ -86,7 +87,7 @@ There is a `apriltag.json` file that configures the tool.  This should be update
  * If running on a Romi the raspberry pi needs to be set to **Writable** in the web service before any changes can be made.
 
 
-## Running as a service
+## Running as a service: AprilTag
 
 In many cases you will want to boot your sensor and have the apriltag process run automatically.  There are many ways to accomplish this.  Here we install it as a unit in systemctl.  See these [examples](https://www.shellhacks.com/systemd-service-file-example/) for more a detailed tutorial or to customize the process.  Here we provide a tutorial and files needed for a typical raspberry pi coprocessor configuration.
 
