@@ -8,6 +8,15 @@ sensor.
 The rplidar tool can be run from the command line and the `-h` option will 
 display additional configuration options:
 
+From the home directory you will need to install the configuration:
+```
+cd ~pi
+```
+
+```
+cp sensors3140/config/rplidar.json ./
+```
+
 ```
 python3 -m sensors3140.rplidar
 ```
