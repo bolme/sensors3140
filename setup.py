@@ -14,5 +14,7 @@ setup(name='Sensors3140',
             'opencv-python',
             'apriltag',
             'pynetworktables',
+            'numpy',
+            'rplidar',
       ],
      )
