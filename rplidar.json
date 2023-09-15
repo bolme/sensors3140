@@ -1,0 +1,7 @@
+{
+    "networktables_host": "10.31.40.2",
+    "sensor_id": "rplidar",
+    "usb_device":"/dev/ttyUSB0",
+    "roi_angle_lower":-15,
+    "roi_angle_upper":15
+}
