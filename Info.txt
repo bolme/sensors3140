@@ -1,0 +1,5 @@
+RPLidar Python Script Information: 
+ * Put RPLidar folder in root
+ * Manually execute script with terminal 
+     - If you want to see the output of the sensor, use the -v option
+ * Refer to README.md on repo for more information!
