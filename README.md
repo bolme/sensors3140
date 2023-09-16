@@ -6,7 +6,7 @@ This script is a stand-alone version of the RPLidar Code.
 
  1. Clone repository into root on Raspberry pi.
  2. Ensure that script executes properly by manually executing it with the terminal.
- __Note:__ Some files require direct file paths, especially the lines for setting up the service and crontab. Make sure these are correct when you set up a new pi. 
+__Note:__ Some files require direct file paths, especially the lines for setting up the service and crontab. Make sure these are correct when you set up a new pi. 
 
 # Running Program on Start:
 
