@@ -63,4 +63,4 @@ Add the line to the end of the Crontab.
 ```
 @reboot python /home/dev3140/RPLidar/__main__.py --c=/home/dev3140/RPLidar/rplidar.json >> /home/dev3140/RPLidar/RPLidarScript.log 2>&1
 ```
-__Note:__ This log file will continue to grow in size the longer you run the lidar with the -v tag, so it's recommended to not use the -v tag for more than testing.
+__Note:__ This log file will continue to grow in size the longer you run the lidar with the -v tag, so it's recommended to not use the -v tag for more than testing if you have the crontab configured to output the script output into a log file.
