@@ -7,6 +7,7 @@ import socket
 import optparse
 import sensors3140
 import traceback
+import os
 
 # An alternate implementation in java from team 4915
 # https://github.com/Spartronics4915/SpartronicsLib/blob/master/src/main/java/com/spartronics4915/lib/hardware/sensors/RPLidarA1.java
@@ -46,6 +47,19 @@ config = json.load(open(options.config,'r'))
 
 host_ip = socket.gethostbyname(config['networktables_host'])
 
+# Test Communication with RoboRio
+connected = False
+print("Attempting to connect to RoboRio @{IP} \n \n".format(IP=host_ip))
+
+while connected == False:
+    result = os.system("ping -c 1 {IP} -q".format(IP=host_ip))
+
+    if result == 0:
+        # Check if the output contains "0% packet loss"
+        connected = True 
+        print("\n \n Connected to NetworkTables @IP: {IP} \n \n".format(IP=host_ip))
+        break
+
 print("Connecting to",config['networktables_host'],'  ip:',host_ip)
 
 NetworkTables.initialize(server=host_ip)
@@ -62,6 +76,7 @@ sensor_table.putString('sensor_ip',ipaddr)
 sensor_table.putString('status',"starting")
 
 rpl = RPLidar(port)
+
 try:
     # Get the basic device info
     print("Attempting to get sensor health.")
@@ -92,7 +107,7 @@ try:
         # Convert angles to -180 to 180
         select = data[:,1] > 180
         data[select,1] -= 360.0
-        
+	
         # Convert from mm to meters
         data[:,2] = data[:,2] / 1000.0
 
