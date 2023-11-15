@@ -1,3 +1,12 @@
+# Fixed Issues: 
+
+* Issues:
+ * Lidar performed two scans before crashing - This was caused becaues the Raspberry Pi would boot faster than the RoboRio and start sending data, eventually overflowing it's buffer and crashing the program.
+* Fixes:
+ * Made a while loop that pings the IP address given in the rplidar.json file for the RoboRio until it gets a 0% packet loss response with 1 packet. Once recieved it will perform as before. 
+
+<hr>
+
 # RPLidar Code
 
 This script is a stand-alone version of the RPLidar Code.
