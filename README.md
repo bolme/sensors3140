@@ -1,6 +1,6 @@
 
 
-Apriltag targets are going to be new for the 2023 First Robotics Compitition according to this [announcement](https://www.firstinspires.org/robotics/frc/blog/2022-control-system-reporting-2023-updates-and-beta-testing).  The code provide here is intended to be used as a stand alone [coprocessor](https://docs.wpilib.org/en/stable/docs/software/vision-processing/wpilibpi/using-a-coprocessor-for-vision-processing.html) that may run using a variety of camera modules or webcams on platforms such as Raspberry Pi, Nvidia Jetson, or similar hardware.  Due to supply chain issues these devices may be hard find or too expensive but Libre AML-S905X-CC (Currently Untested) seems to be an easy to obtain and cost effective substitute. 
+Apriltag targets are going to be new for the 2023 First Robotics Competition according to this [announcement](https://www.firstinspires.org/robotics/frc/blog/2022-control-system-reporting-2023-updates-and-beta-testing).  The code provide here is intended to be used as a stand alone [coprocessor](https://docs.wpilib.org/en/stable/docs/software/vision-processing/wpilibpi/using-a-coprocessor-for-vision-processing.html) that may run using a variety of camera modules or webcams on platforms such as Raspberry Pi, Nvidia Jetson, or similar hardware.  Due to supply chain issues these devices may be hard find or too expensive but Libre AML-S905X-CC (Currently Untested) seems to be an easy to obtain and cost effective substitute. 
 
 *First intents to release apriltag detectors that will work with the RoboRio in the near future.  The interface provided by sensors3140 my be updated to improve compatibility for the 2023 season.  See additional info from [chiefdelphi](https://www.chiefdelphi.com/t/photonvision-beta-2023-apriltags/415626).*
 
@@ -17,6 +17,7 @@ A number of dependencies may be required. The following is suggested for Raspber
 On Raspberry Pi and Nvidia Jetsons this software can typically be installed with the apt utility.  Here we suggest getting development libraries which may be required to install some packages from source.  Nvidia Jetson platforms may have specialized installation procedures for libraries like opencv to be accelerated by the the Cuda GPU.
 
 ```
+sudo apt update
 sudo apt install gcc cmake libopencv-dev python3-dev python3-opencv python3-numpy python3-scipy python3-sklearn python3-skimage python3-pandas python3-pip
 ```
 
@@ -86,7 +87,7 @@ There is a `apriltag.json` file that configures the tool.  This should be update
  * If running on a Romi the raspberry pi needs to be set to **Writable** in the web service before any changes can be made.
 
 
-## Running as a service
+## Running as a service: AprilTag
 
 In many cases you will want to boot your sensor and have the apriltag process run automatically.  There are many ways to accomplish this.  Here we install it as a unit in systemctl.  See these [examples](https://www.shellhacks.com/systemd-service-file-example/) for more a detailed tutorial or to customize the process.  Here we provide a tutorial and files needed for a typical raspberry pi coprocessor configuration.
 
