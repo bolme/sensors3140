@@ -80,6 +80,8 @@ obj_points = []
 
 size = (0,0)
 try:
+    prev_mtx = None
+    error_vals = []
     while cap.grab():
     
         i += 1
@@ -115,12 +117,24 @@ try:
             img_points.append(np.array(img,dtype=np.float32))
             obj_points.append(np.array(obj,dtype=np.float32))
 
-            print("    New Points:",len(img),"Frames: ",len(img_points))
+            #print("    New Points:",len(img),"Frames: ",len(img_points))
 
             
             if len(img_points) > 3:
                 ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(obj_points, img_points, size, None, None)
-                print('params:',mtx[0,0],mtx[1,1],mtx[0,2],mtx[1,2])
+                #print('params:',mtx[0,0],mtx[1,1],mtx[0,2],mtx[1,2],mtx.shape)
+                if prev_mtx is None:
+                    prev_mtx = mtx
+                else:
+                    diff_mtx = prev_mtx - mtx
+                    prev_mtx = mtx
+                    err = np.linalg.norm(diff_mtx,ord=2)
+                    error_vals.append(err)
+                    error_vals = error_vals[-10:]
+                    if len(error_vals) > 8:
+                       print(f"Average Error: {np.mean(error_vals)}   Total Points: {len(img_points)}")
+                       if np.mean(error_vals) < 0.5:
+                           break
 
         if options.display:
             cv2.imshow('img',image)
@@ -152,4 +166,18 @@ if options.outfile:
     json.dump(result,open(options.outfile,'w'),indent=4)
 
 
+
+    # "parameters": [
+    #     513.5692261981907,
+    #     511.9628279267013,
+    #     324.45659369977324,
+    #     242.15586616864744
+    # ],
+    # "distortion": [
+    #     0.007654730212483044,
+    #     0.14223667786170405,
+    #     0.0038073770122510294,
+    #     0.0012131524239662,
+    #     -0.37253895909847246
+    # ]
 

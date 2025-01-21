@@ -2,7 +2,7 @@
     "networktables_host": "10.0.0.2",
     "sensor_id": "apriltag",
     "video_device":0,
-    "calibration":"/home/pi/camera.json",
+    "calibration":"camera.json",
     "tag_size": 152.4,
-    "tag_family": "tag16h5"
+    "tag_family": "tag36h11"
 }

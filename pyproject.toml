@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "Sensors3140"
+version = "0.0.1"
+dependencies = [
+    "opencv-python",
+    "apriltag",
+    "pynetworktables",
+    "numpy",
+    "rplidar",
+    "psutil"
+    "pyntcore"
+    ]
+
+description = "Sensors for FRC"
+authors = [
+    { name = "David Bolme", email = "dbolme@gmail.com" }
+]
+# url = "https://www.python.org/sigs/distutils-sig/"
+
+[project.urls]
+# Add any URLs here if needed
+
+[tool.setuptools.packages.find]
+where = ["python"]
+

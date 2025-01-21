@@ -9,6 +9,7 @@ import time
 import socket
 import optparse
 import sensors3140
+import psutil
 
 
 def parseOptions():
@@ -28,17 +29,48 @@ def parseOptions():
 
     return options, args
 
+import psutil
+
+def get_ip_addresses():
+    ip_addresses = []
+    for interface, addrs in psutil.net_if_addrs().items():
+        for addr in addrs:
+            if addr.family == socket.AF_INET:
+                ip_addresses.append(addr.address)
+    return ip_addresses
+
+if __name__ == "__main__":
+    print(get_ip_addresses())
+    exit()
 
 options, args = parseOptions()
 
-hostname=socket.gethostname()
-ipaddr=socket.gethostbyname(hostname)
-
+hostname = "unknown"
+ipaddr = "127.0.0.1"
+try:
+    hostname=socket.gethostname()
+    ipaddr=socket.gethostbyname(hostname)
+except:
+    pass
 # Configure network tables
 config = json.load(open(options.config,'r'))
 calib = json.load(open(config['calibration'],'r'))
 
-host_ip = socket.gethostbyname(config['networktables_host'])
+host_ip = '127.0.0.1'
+try:
+    ip_addresses = []
+
+    # Get all the ip addresses for the host
+    for addrinfo in socket.getaddrinfo(socket.gethostname(), None):
+        ip_addresses.append(addrinfo[4][0])
+
+    print("IP Addresses:",ip_addresses)
+    exit()
+
+    host_ip = socket.gethostbyname(config['networktables_host'])
+except:
+    raise
+    pass
 
 print("Connecting to",config['networktables_host'],'  ip:',host_ip)
 
@@ -122,10 +154,11 @@ while cap.grab():
 
             if options.display or (update and options.sample):
                 cv2.circle(image, (cX, cY), 5, (0, 0, 255), -1)
-                cv2.putText(image,"ID: %s"%r.tag_id, (cX, cY + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                cv2.putText(image,"DIST: %0.3fm"%dist, (cX, cY + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                cv2.putText(image,"BEARING: %0.1fdeg"%bearing, (cX, cY + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-                cv2.putText(image,"AZIMUTH: %0.1fdeg"%azimuth, (cX, cY + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                color = (255, 0, 0)
+                cv2.putText(image,"ID: %s"%r.tag_id, (cX, cY + 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                cv2.putText(image,"DIST: %0.3fm"%dist, (cX, cY + 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                cv2.putText(image,"BEARING: %0.1fdeg"%bearing, (cX, cY + 35), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                cv2.putText(image,"AZIMUTH: %0.1fdeg"%azimuth, (cX, cY + 50), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
 
                 if options.sample:
                     cv2.imwrite('apriltag_sample.png',image)
