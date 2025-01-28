@@ -11,8 +11,9 @@ dependencies = [
     "pynetworktables",
     "numpy",
     "rplidar",
-    "psutil"
-    "pyntcore"
+    "psutil",
+    "pyntcore",
+    "robotpy-cscore",
     ]
 
 description = "Sensors for FRC"
