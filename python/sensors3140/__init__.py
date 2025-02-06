@@ -11,10 +11,10 @@ import os
 
 from .camera import Camera
 
-
 # Config directory <home>/sensors3140/
 # This is the directory where configuration files are stored.
 sensors3140_directory = os.path.join(os.path.expanduser("~"), "sensors3140")
+os.makedirs(sensors3140_directory, exist_ok=True)
 
 # Set up logging to the sensor3140_directory
 log_file = os.path.join(sensors3140_directory, "sensors3140.log")

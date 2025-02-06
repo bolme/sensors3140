@@ -13,19 +13,18 @@ _logger = logging.getLogger(__name__)
 
 
 class Camera:
-    def __init__(self, camera_name, camera_id, width=None, height=None, fps=None):
-        self.camera_name = camera_name
+    def __init__(self, camera_id=None, frame_size=None, fps=None, **kwargs):
         try:
             self.camera_id = int(camera_id)
         except:
             self.camera_id = camera_id
 
-        self.width = width
-        self.height = height
+        self.frame_size = frame_size
+        self.width, self.height = frame_size
 
         self.cap = cv2.VideoCapture(self.camera_id)
-        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
-        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+        self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+        self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, fps)
         self.frame_id = 0
         self.prev_time = time.time()
@@ -62,7 +61,7 @@ class Camera:
             self.last_frame = img
 
     def get_frame(self):
-        return self.last_frame
+        return self.last_frame, self.frame_id, self.prev_time
     
 
 def load_cameras_from_config_directory(config_dir: str = None) -> dict:
