@@ -23,14 +23,29 @@ class Camera:
         self.width, self.height = frame_size
 
         self.cap = cv2.VideoCapture(self.camera_id)
+
+        # Required to set up the camera
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, fps)
+
         self.frame_id = 0
         self.prev_time = time.time()
         self.last_frame = None
+
+        # Optional camera settings
+        if 'exposure' in kwargs:
+            self.cap.set(cv2.CAP_PROP_EXPOSURE, kwargs['exposure'])
+        if 'gain' in kwargs:
+            self.cap.set(cv2.CAP_PROP_GAIN, kwargs['gain'])
+
         self.camera_matrix = None
+        if 'matrix' in kwargs:
+            self.camera_matrix = np.array(kwargs['matrix'], dtype=np.float32).reshape((3, 3))
+        
         self.dist_coeffs = None
+        if 'distortion' in kwargs:
+            self.dist_coeffs = np.array(kwargs['distortion'], dtype=np.float32)
 
         # Start the capture thread
         self.start_capture()

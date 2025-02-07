@@ -5,6 +5,8 @@ import json
 import time
 
 def main():
+    cameras = []
+
     # Scan the configuration directory for camera configurations
     files = os.listdir(sensors3140.sensors3140_directory)
     for file in files:
@@ -18,14 +20,21 @@ def main():
             # Create a camera object from the configuration
             camera = sensors3140.Camera(**data)
 
-            # Run a simple test
-            time.sleep(1)
+            # Add the camera to the list
+            cameras.append(camera)
+
+    time.sleep(3.0)
+
+    while True:
+        for camera in cameras:
             frame, frame_id, prev_time = camera.get_frame()
             print(f"Frame ID: {frame_id}, Size: {frame.shape}, Time: {prev_time}")
-            time.sleep(1)
-            print(f"Frame ID: {frame_id}, Size: {frame.shape}, Time: {prev_time}")
 
-            
+            # Process the frame here
+            time.sleep(1)
+
+
+
             
 
 if __name__ == "__main__":

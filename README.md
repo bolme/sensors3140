@@ -14,6 +14,10 @@ A number of dependencies may be required. The following is suggested for Raspber
  * Computer vision libraries like libopencv
  * A basic Python 3 environment is recommended with development and some computer vision, imaging, and machine learning tools installed. 
 
+**MacOS Specific Installs**
+ * `xcode-select --install`
+ * `sudo xcodebuild -license`
+
 On Raspberry Pi and Nvidia Jetsons this software can typically be installed with the apt utility.  Here we suggest getting development libraries which may be required to install some packages from source.  Nvidia Jetson platforms may have specialized installation procedures for libraries like opencv to be accelerated by the the Cuda GPU.
 
 ```
