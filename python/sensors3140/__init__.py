@@ -26,8 +26,6 @@ logging.info("Version: %s", __version__)
 logging.info("Date: %s", time.strftime("%Y-%m-%d %H:%M:%S %Z"))
 
 
-
-
 def connect_to_camera(camera_id):
     import cv2
 
