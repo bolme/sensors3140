@@ -7,10 +7,18 @@ import numpy as np
 import logging
 import json
 import os
+from sensors3140.apriltag.detector import AprilTagDetector
 
 _logger = logging.getLogger(__name__)
 
+class FrameData:
+    def __init__(self, frame, frame_id, timestamp):
+        self.frame = frame
+        self.frame_id = frame_id
+        self.timestamp = timestamp
 
+    def __repr__(self):
+        return f"FrameData(frame_id={self.frame_id}, timestamp={self.timestamp})"
 
 class Camera:
     def __init__(self, camera_id=None, frame_size=None, fps=None, **kwargs):
@@ -47,6 +55,11 @@ class Camera:
         if 'distortion' in kwargs:
             self.dist_coeffs = np.array(kwargs['distortion'], dtype=np.float32)
 
+        if 'parameters' in kwargs:
+            self.parameters = np.array(kwargs['parameters'], dtype=np.float32)
+
+        self.apriltag_detector = None
+
         # Start the capture thread
         self.start_capture()
 
@@ -69,14 +82,32 @@ class Camera:
         while True:
             retval, img = self.cap.read(img)
             curr_time = time.time()
+            frame_data = FrameData(img, self.frame_id, curr_time)
             calibrated = self.isCalibrated()
-            print(f"CameraID: {self.camera_id} {self.width} {self.height} FPS: {1/(curr_time - self.prev_time):.2f} Calibrated: {calibrated}")
             self.prev_time = curr_time
             self.frame_id += 1
             self.last_frame = img
 
+            if self.apriltag_detector is not None:
+                if calibrated:
+                    detections = self.apriltag_detector(img)
+                    frame_data.detections = detections
+                    for detection in detections:
+                        print(f"Camera {self.camera_id} detected tag {detection['id']}")
+                        print(f"    Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
+                        print(f"    Pose Decomposed: {detection['pose_decomposed']}")
+                    
+                else:
+                    print(f"Camera {self.camera_id} is not calibrated")
+
     def get_frame(self):
-        return self.last_frame, self.frame_id, self.prev_time
+        frame_data = FrameData(self.last_frame, self.frame_id, self.prev_time)
+        return frame_data
+    
+    def enable_apriltags(self):
+        self.apriltag_detector = AprilTagDetector(camera_params=self.parameters)
+        pass
+
     
 
 def load_cameras_from_config_directory(config_dir: str = None) -> dict:

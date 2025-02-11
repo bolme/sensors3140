@@ -2,24 +2,37 @@ from networktables import NetworkTables
 import threading
 import logging
 import time
+import socket
 import numpy as np
 
+    
 class NetworkTablesManager:
+
+    _instance = None
+    
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+    
     def __init__(self, robot_ip_or_team: str = None):
-        self.robot_ip = robot_ip
-        self.connected = False
-        self.running = True
-        
-        # Setup logging
-        self.logger = logging.getLogger('NetworkTables')
-        self.logger.setLevel(logging.INFO)
-        
-        # Initial connection
-        self._connect()
-        
-        # Start monitoring thread
-        self.monitor_thread = threading.Thread(target=self._monitor_connection, daemon=True)
-        self.monitor_thread.start()
+        if not hasattr(self, 'initialized'):
+            self.initialized = True
+            self.robot_ip = robot_ip_or_team
+
+            self.connected = False
+            self.running = True
+            
+            # Setup logging
+            self.logger = logging.getLogger('NetworkTables')
+            self.logger.setLevel(logging.INFO)
+            
+            # Initial connection
+            self._connect()
+            
+            # Start monitoring thread
+            self.monitor_thread = threading.Thread(target=self._monitor_connection, daemon=True)
+            self.monitor_thread.start()
 
     def _guess_robot_ip(self):
         "Try a few things to determine the robot IP address"
@@ -74,6 +87,45 @@ class NetworkTablesManager:
             table = table.getSubTable(path[i])
         table.getEntry(path[-1]).setDouble(value)
 
+    def setString(self, path, value):
+        if not self.connected:
+            return
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        table.getEntry(path[-1]).setString(value)
+
+
+    def getString(self, path, default=""):
+        if not self.connected:
+            return ""
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        return table.getEntry(path[-1]).getString(default)
+    
+    def getInteger(self, path, default=-1):
+        if not self.connected:
+            return -1
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        value = table.getEntry(path[-1]).getDouble(default)
+        return int(value+0.5) # Round to nearest integer
+    
+    def setInteger(self, path, value):
+        if not self.connected:
+            return
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        table.getEntry(path[-1]).setDouble(value)
+
+
 
     def setDoubleArray(self, path, value):
         if not self.connected:
@@ -96,7 +148,7 @@ class NetworkTablesManager:
         return -1.0
 
 def main():
-    nt = NetworkTablesManager()
+    nt = NetworkTablesManager("127.0.0.1")
     try:
         while True:
             connected = nt.is_connected()

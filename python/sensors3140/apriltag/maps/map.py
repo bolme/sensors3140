@@ -7,6 +7,38 @@ import json
 import argparse
 import os
 
+# References:
+#
+# Robot Coordinate System: https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html
+
+def load_apriltag_coordinates(game_id):
+    coordinates = {}
+    with open(f"{game_id}.json") as f:
+        data = json.load(f)
+        for tag in data['tags']:
+            id = tag['ID']
+            x = tag['pose']['translation']['x']
+            y = tag['pose']['translation']['y']
+            z = tag['pose']['translation']['z']
+            
+            qw = tag['rotation']['quaternion']['W']
+            qx = tag['rotation']['quaternion']['X']
+            qy = tag['rotation']['quaternion']['Y']
+            qz = tag['rotation']['quaternion']['Z']
+
+            # Create a transform that converts from the tag coordinate system to the field coordinate system
+            
+            rotation_matrix = np.array([[1 - 2*qy**2 - 2*qz**2, 2*qx*qy - 2*qz*qw, 2*qx*qz + 2*qy*qw],
+                                        [2*qx*qy + 2*qz*qw, 1 - 2*qx**2 - 2*qz**2, 2*qy*qz - 2*qx*qw],
+                                        [2*qx*qz - 2*qy*qw, 2*qy*qz + 2*qx*qw, 1 - 2*qx**2 - 2*qy**2]])
+            translation_matrix = np.array([[x], [y], [z]])
+
+            transform_matrix = np.eye(4)
+            transform_matrix[:3, :3] = rotation_matrix
+            transform_matrix[:3, 3] = translation_matrix.flatten()
+
+            coordinates[id] = ((x, y, z), transform_matrix)
+
 
 class LiveMapDisplay:
     def __init__(self, game_id):
