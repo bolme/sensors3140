@@ -7,62 +7,81 @@ import json
 import argparse
 import os
 
+
 # References:
 #
 # Robot Coordinate System: https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html
 
-def load_apriltag_coordinates(game_id):
-    coordinates = {}
-    with open(f"{game_id}.json") as f:
+def load_apriltags(game_id):
+    json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
+    with open(json_path) as f:
         data = json.load(f)
         for tag in data['tags']:
             id = tag['ID']
             x = tag['pose']['translation']['x']
             y = tag['pose']['translation']['y']
             z = tag['pose']['translation']['z']
-            
-            qw = tag['rotation']['quaternion']['W']
-            qx = tag['rotation']['quaternion']['X']
-            qy = tag['rotation']['quaternion']['Y']
-            qz = tag['rotation']['quaternion']['Z']
+
+            qw = tag['pose']['rotation']['quaternion']['W']
+            qx = tag['pose']['rotation']['quaternion']['X']
+            qy = tag['pose']['rotation']['quaternion']['Y']
+            qz = tag['pose']['rotation']['quaternion']['Z']
+
 
             # Create a transform that converts from the tag coordinate system to the field coordinate system
-            
             rotation_matrix = np.array([[1 - 2*qy**2 - 2*qz**2, 2*qx*qy - 2*qz*qw, 2*qx*qz + 2*qy*qw],
                                         [2*qx*qy + 2*qz*qw, 1 - 2*qx**2 - 2*qz**2, 2*qy*qz - 2*qx*qw],
                                         [2*qx*qz - 2*qy*qw, 2*qy*qz + 2*qx*qw, 1 - 2*qx**2 - 2*qy**2]])
+            
             translation_matrix = np.array([[x], [y], [z]])
 
             transform_matrix = np.eye(4)
             transform_matrix[:3, :3] = rotation_matrix
             transform_matrix[:3, 3] = translation_matrix.flatten()
+            
+            # add the transform to the dictionary
+            tag['transform'] = transform_matrix
 
-            coordinates[id] = ((x, y, z), transform_matrix)
+        return data            
+
+    return None
 
 
 class LiveMapDisplay:
     def __init__(self, game_id):
         self.game_id = game_id
         self.image_path = os.path.join(os.path.dirname(__file__), f"{game_id}.jpg")
-        self.json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
         self.img = None
-        self.data = None
+
+        self.map_data = load_apriltags(game_id)
+
         self.field_width = None
         self.field_length = None
         self.image_width = None
         self.image_height = None
 
+        self.robot_width = 1.0
+        self.robot_height = 1.0
+        self.robot_x = 0.0
+        self.robot_y = 0.0
+
+        self._detections = {}
+
     def load(self):
         self.img = cv2.imread(self.image_path)
         assert self.img is not None, f"Could not load image {self.game_id}.jpg"
 
-        with open(self.json_path) as f:
-            self.data = json.load(f)
-
-        self.field_width = self.data['field']['width']
-        self.field_length = self.data['field']['length']
+        self.field_width = self.map_data['field']['width']
+        self.field_length = self.map_data['field']['length']
         self.image_width = self.img.shape[1]
         self.image_height = self.img.shape[0]
+
+    def set_detected_tags(self, detections):
+        self._detections = {}
+        for detection in detections:
+            id = detection['id']
+            self._detections[id] = detection
+
 
     def real_world_to_pixel(self, points):
         x = points[0]
@@ -115,7 +134,7 @@ class LiveMapDisplay:
 
         # Draw the robot center point
         x, y = self.real_world_to_pixel((self.robot_x, self.robot_y))
-        print(x, y) 
+
         cv2.circle(self.img, (x, y), 10, (0, 255, 0), -1)
 
 
@@ -127,18 +146,44 @@ class LiveMapDisplay:
         #translation_matrix = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         #transform_matrix = np.dot(scale_matrix, rotation_matrix)
         #transform_matrix = np.dot(transform_matrix,translation_matrix)
+
+        img = self.img.copy()
     
-        for tag in self.data['tags']:
+        for tag in self.map_data['tags']:
             id = tag['ID']
             x = tag['pose']['translation']['x']
             y = tag['pose']['translation']['y']
             z = tag['pose']['translation']['z']
 
+                                           
+            # Compute the pixel coordinates of the tag
             tag_point = np.array([[x], [y], [1.0]])
-
             pixel_x, pixel_y = self.real_world_to_pixel((x, y))
 
-            cv2.circle(self.img, (int(pixel_x),int(pixel_y)), 10, (0, 0, 255), -1)
+            color = (0, 0, 255)
+            distance = None
+            if id in self._detections:
+                color = (0, 255, 0)
+                distance = self._detections[id]['distance']
+                # convert the distace to a radius in pixels
+                distance = distance / self.field_length * self.image_width
+
+            # Draw the tag
+            cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
+
+            # Find the point one meter in front of the tag so we can draw a line to it
+            # This is the x axis of the tag coordinate system
+            tag_direction = np.array([[1.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
+            transform = tag['transform']
+            tag_direction = np.matmul(transform, tag_direction)
+
+            # Draw the distance
+            if distance is not None:
+                cv2.circle(img, (int(pixel_x),int(pixel_y)), int(distance), color, 2)
+            
+            # Draw a line from the tag to the point one meter in front of the tag
+            dir_x, dir_y = self.real_world_to_pixel((tag_direction[0], tag_direction[1]))
+            cv2.line(img, (int(pixel_x), int(pixel_y)), (int(dir_x), int(dir_y)), color, 1)
 
             text_size = cv2.getTextSize(str(id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
             text_x = int(pixel_x - text_size[0] / 2)
@@ -148,20 +193,17 @@ class LiveMapDisplay:
             else:
                 text_y -= text_size[1] - 10
 
-            cv2.putText(self.img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            cv2.putText(img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+
 
         # plot a circle at the robot's location
         robot_x, robot_y = self.real_world_to_pixel((self.robot_x, self.robot_y))
-        print(robot_x, robot_y)
-        print(self.robot_x, self.robot_y)
-        cv2.circle(self.img, (robot_x, robot_y), 10, (0, 255, 0), 10)
+        cv2.circle(img, (robot_x, robot_y), 10, (0, 255, 0), 10)
 
 
         window_name = 'AprilTag Overlay'
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.imshow(window_name, self.img)
-        cv2.waitKey(30000)
-
+        cv2.imshow(window_name, img)
 
 if __name__ == "__main__":
     display = LiveMapDisplay("2025-reefscape")

@@ -8,6 +8,8 @@ from sensors3140.camera.streaming_task import StreamingTask
 
 import sensors3140.tables.network_tables as nt
 
+import sensors3140.apriltag.maps.map as map
+
 import time
 
 def parse_args() -> argparse.Namespace:
@@ -18,10 +20,25 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--map", action="store_true", help="Display the map", default=False)
     return parser.parse_args()
 
+
+
 def main():
 
-    tables = nt.NetworkTablesManager("10.31.40.2")
+    tables = nt.NetworkTablesManager("127.0.0.1")
 
+    # wait for network tables to connect
+    for _ in range(100): 
+        if tables.is_connected():
+            break
+        time.sleep(0.1)
+
+    if not tables.is_connected():
+        print("WARNING: Failed to connect to NetworkTables")
+    else:
+        print("Connected to NetworkTables")
+
+
+    map_display = None
 
     # Parse command line arguments
     args = parse_args()
@@ -44,9 +61,12 @@ def main():
             # Add the camera to the list
             cameras.append(camera)
 
-    time.sleep(3.0)
+            print("Created camera", camera.camera_id)
+
+    time.sleep(3)
 
     at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters) for camera in cameras]
+
 
     # Create a streaming task for each camera
     streaming_tasks = [StreamingTask(f"Camera {camera.camera_id} Streaming Task") for camera in cameras]
@@ -93,6 +113,7 @@ def main():
 
             stream.add_input(frame_data)
 
+
             # Process the frame here
             if args.display:
                 # Display apriltag detections
@@ -109,10 +130,29 @@ def main():
             
                 # Handle quit condition
                 key = cv2.waitKey(1)
-                print(key, ord('q'))
+
                 if key == ord('q'):
                     running = False
-                    
+
+                
+        if args.map:
+            # Create the map display if it doesn't exist
+            if map_display is None:
+                map_display = map.LiveMapDisplay("2025-reefscape")
+                map_display.load()
+                map_display.set_robot_size(0.74, 0.74)
+
+            # update the detected tags
+            detected_tags = []
+            for detector in at_detectors:
+                detected_tags += detector.get_detected_tags()
+
+            map_display.set_detected_tags(detected_tags)
+
+            map_display: map.LiveMapDisplay
+
+            map_display.display()
+
 
 
 if __name__ == "__main__":

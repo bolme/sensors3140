@@ -1,7 +1,7 @@
 import cv2
 import apriltag
 import numpy as np
-from sensors3140.apriltag.maps.map import load_apriltag_coordinates
+from sensors3140.apriltag.maps.map import load_apriltags
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 
@@ -22,14 +22,21 @@ class AprilTagDetector:
         self.camera_params = camera_params
         self.tag_size = tag_size
         self.camera_id = camera_id
+        self.detections = []
+
+        self.load_map(game_id)
+
+        self.detected_tags = set()
 
         self.table = NetworkTablesManager()
         self.table.setString(f"sensors3140/apriltags/camera{camera_id}/family", tag_family)
         self.table.setInteger(f"sensors3140/apriltags/camera{camera_id}/target_id", -1)
 
+        print(f"Created AprilTagDetector for camera {camera_id}")
+
 
     def load_map(self, game_id):
-        self.apriltag_coordinates = load_apriltag_coordinates(game_id)
+        self.map_data = load_apriltags(game_id)
 
     def __call__(self, frame_data):
         start_time = time.time()
@@ -55,6 +62,7 @@ class AprilTagDetector:
         azimuths = []
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
         #print("Target:",target)
+        current_detected_tags = set()
         for r in results:
             # camera param format: [fx, fy, cx, cy]
             pose = self.detector.detection_pose(r, self.camera_params, self.tag_size)
@@ -73,6 +81,17 @@ class AprilTagDetector:
                 'pose_decomposed': self.decompose_pose_matrix(pose[0])
             })
 
+            # print pose and pose_decomposed
+
+            print("Pose:",detections[-1]['pose'])
+            print("Pose Decomposed:",detections[-1]['pose_decomposed'])
+
+            # Get the apriltag transform.
+            transform = self.map_data['tags'][r.tag_id]['transform']
+            print("Transform:",transform)
+
+            current_detected_tags.add(r.tag_id)
+
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", dist)
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_bearing", bearing)
@@ -84,6 +103,7 @@ class AprilTagDetector:
             bearings.append(bearing)
             azimuths.append(azimuth)
 
+        self.detected_tags = current_detected_tags
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/timestamp", frame_data.timestamp)
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/frame_id", frame_data.frame_id)
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/count", len(detections))
@@ -95,7 +115,12 @@ class AprilTagDetector:
         end_time = time.time()
 
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/processing_time", end_time - start_time)
+
+        self.detections = detections
         return detections
+    
+    def get_detected_tags(self):
+        return self.detections
     
     def decompose_pose_matrix(self, pose_matrix: np.ndarray) -> dict[str, float]:
         """
