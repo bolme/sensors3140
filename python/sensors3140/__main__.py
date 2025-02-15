@@ -20,7 +20,7 @@ def parse_args() -> argparse.Namespace:
 
 def main():
 
-    tables = nt.NetworkTablesManager("127.0.0.1")
+    tables = nt.NetworkTablesManager("10.31.40.2")
 
 
     # Parse command line arguments
