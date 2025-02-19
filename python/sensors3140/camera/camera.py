@@ -92,10 +92,10 @@ class Camera:
                 if calibrated:
                     detections = self.apriltag_detector(img)
                     frame_data.detections = detections
-                    for detection in detections:
-                        print(f"Camera {self.camera_id} detected tag {detection['id']}")
-                        print(f"    Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
-                        print(f"    Pose Decomposed: {detection['pose_decomposed']}")
+                    #for detection in detections:
+                    #    print(f"Camera {self.camera_id} detected tag {detection['id']}")
+                    #    print(f"    Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
+                    #    print(f"    Pose Decomposed: {detection['pose_decomposed']}")
                     
                 else:
                     print(f"Camera {self.camera_id} is not calibrated")

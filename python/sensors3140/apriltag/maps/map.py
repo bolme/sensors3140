@@ -162,11 +162,16 @@ class LiveMapDisplay:
 
             color = (0, 0, 255)
             distance = None
+            global_camera_pose = None
+
             if id in self._detections:
                 color = (0, 255, 0)
                 distance = self._detections[id]['distance']
                 # convert the distace to a radius in pixels
                 distance = distance / self.field_length * self.image_width
+                global_camera_pose
+                # get the global camera pose
+                global_camera_pose = self._detections[id]['global_camera_pose']
 
             # Draw the tag
             cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
@@ -194,6 +199,15 @@ class LiveMapDisplay:
                 text_y -= text_size[1] - 10
 
             cv2.putText(img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+
+            if global_camera_pose is not None:
+                # Draw a line from the tag to the camera
+                blue = (255, 0, 0)
+                #print("Global Camera Pose:")
+                #print(global_camera_pose)
+                camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[2,3]))
+                cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
+                cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
 
 
         # plot a circle at the robot's location

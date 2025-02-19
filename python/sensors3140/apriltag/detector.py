@@ -8,6 +8,7 @@ import time
 class AprilTagDetector:
     def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, tag_size=.20638, game_id="2025-reefscape"):
         self.detector_options = apriltag.DetectorOptions(families=tag_family)
+
         # options = apriltag.Detectoroptions(families='tag36h11',
         #                          border=1,
         #                          nthreads=4,
@@ -18,6 +19,7 @@ class AprilTagDetector:
         #                          refine_pose=False,
         #                          debug=False,
         #                          quad_contours=True)
+
         self.detector = apriltag.Detector(self.detector_options)
         self.camera_params = camera_params
         self.tag_size = tag_size
@@ -43,6 +45,7 @@ class AprilTagDetector:
         frame = frame_data.frame
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         results = self.detector.detect(gray)
+
         # Results format:
         # [
         #   DetectionBase(
@@ -61,8 +64,7 @@ class AprilTagDetector:
         bearings = []
         azimuths = []
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
-        #print("Target:",target)
-        current_detected_tags = set()
+
         for r in results:
             # camera param format: [fx, fy, cx, cy]
             pose = self.detector.detection_pose(r, self.camera_params, self.tag_size)
@@ -77,20 +79,30 @@ class AprilTagDetector:
                 'distance': dist,
                 'bearing': bearing,
                 'azimuth': azimuth,
+                'tag_rotation': pose[0][:3, :3],
+                'tag_translation': pose[0][:3, 3],
                 'pose': pose[0],
-                'pose_decomposed': self.decompose_pose_matrix(pose[0])
+                'pose_decomposed': self.decompose_pose_matrix(pose[0]),
+                'camera_params': self.camera_params,
             })
 
-            # print pose and pose_decomposed
+            # This transforms points in the tags coordinate system to the field coordinate system
+            april_tag_pose = self.map_data['tags'][r.tag_id]['transform']
 
-            print("Pose:",detections[-1]['pose'])
-            print("Pose Decomposed:",detections[-1]['pose_decomposed'])
+            print(f"Tag {r.tag_id} pose: {april_tag_pose}")
 
-            # Get the apriltag transform.
-            transform = self.map_data['tags'][r.tag_id]['transform']
-            print("Transform:",transform)
+            # this is the pose of the tag in the camera coordinate system
+            tag_pose = pose[0]
+            print(f"Tag {r.tag_id} camera pose: {tag_pose}")
 
-            current_detected_tags.add(r.tag_id)
+            # find the camera pose in the tag coordinate system
+            camera_pose = np.linalg.inv(tag_pose)
+
+            # find the camera pose in the field coordinate system
+            camera_location = np.dot(april_tag_pose, camera_pose)
+
+            # add the camera location to the detection
+            detections[-1]['global_camera_pose'] = camera_location
 
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", dist)
@@ -103,7 +115,6 @@ class AprilTagDetector:
             bearings.append(bearing)
             azimuths.append(azimuth)
 
-        self.detected_tags = current_detected_tags
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/timestamp", frame_data.timestamp)
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/frame_id", frame_data.frame_id)
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/count", len(detections))

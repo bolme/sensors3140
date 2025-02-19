@@ -5,6 +5,7 @@ import argparse
 import cv2
 from sensors3140.apriltag.detector import AprilTagDetector
 from sensors3140.camera.streaming_task import StreamingTask
+import numpy as np
 
 import sensors3140.tables.network_tables as nt
 
@@ -19,6 +20,103 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--display" , action="store_true", help="Display the camera feed", default=False)
     parser.add_argument("--map", action="store_true", help="Display the map", default=False)
     return parser.parse_args()
+
+def display_apriltag_boxes(img, detections):
+    for detection in detections:
+        # Draw the tag outline
+        corners = detection['corners']
+        for i in range(len(corners)):
+            cv2.line(img, tuple(corners[i-1, :].astype(int)), tuple(corners[i, :].astype(int)), (0, 255, 0), 2)
+
+        # Draw the center
+        center = detection['center']
+        cv2.circle(img, tuple(center.astype(int)), 5, (0, 255, 0), -1)
+
+        # Draw the ID and distance
+        cv2.putText(img, f"ID: {detection['id']}", tuple(center.astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(img, f"Dist: {detection['distance']:.2f}m", (center[0].astype(int), center[1].astype(int) + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+    return img
+
+
+def display_apriltag_pose(img, detections):
+    for detection in detections:
+        pose = detection['pose']
+
+        tag_translation = pose[0:3, 3]
+        tag_rotation = pose[0:3, 0:3]
+
+        camera_params = detection['camera_params']
+
+        # tag center is the translation in homogenous coordinates
+        tag_center = np.array([[tag_translation[0]], [tag_translation[1]], [tag_translation[2]], [1.0]])
+
+        # Compute the 3x4 camera projection matrix
+        kx, ky, cx, cy = camera_params
+
+        camera_matrix = np.array([[kx, 0, cx], [0, ky, cy], [0, 0, 1]])
+        transform = np.eye(4)
+        projection_matrix = np.dot(camera_matrix, transform[:3, :])
+        print("Proj:",projection_matrix.shape)
+        print(projection_matrix)
+
+        transformed_center = np.dot(projection_matrix, tag_center)
+        print("Center:",transformed_center)
+
+        image_coords = transformed_center[0:2] / transformed_center[2]
+        print("Image Coords:",image_coords)
+
+        # Draw the tag_center as a yellow circle outline
+        cv2.circle(img, tuple(image_coords[0:2].flatten().astype(int)), 30, (0, 255, 255), 2)
+
+        # Draw 0.1m x, y, z axes for the tag
+        x_axis = np.array([[0.1], [0], [0], [1]])
+        y_axis = np.array([[0], [0.1], [0], [1]])
+        z_axis = np.array([[0], [0], [-0.1], [1]])
+
+        x_axis = np.dot(pose, x_axis)
+        y_axis = np.dot(pose, y_axis)
+        z_axis = np.dot(pose, z_axis)
+
+        x_axis = np.dot(projection_matrix, x_axis) 
+        y_axis = np.dot(projection_matrix, y_axis)
+        z_axis = np.dot(projection_matrix, z_axis) 
+
+        # Normalize the coordinates to image space
+        x_axis = x_axis[0:2] / x_axis[2]
+        y_axis = y_axis[0:2] / y_axis[2]
+        z_axis = z_axis[0:2] / z_axis[2]
+
+        # Draw the axes
+        cv2.line(img, tuple(image_coords[0:2].flatten().astype(int)), tuple(x_axis[0:2].flatten().astype(int)), (0, 0, 255), 2)
+        cv2.line(img, tuple(image_coords[0:2].flatten().astype(int)), tuple(y_axis[0:2].flatten().astype(int)), (0, 255, 0), 2)
+        cv2.line(img, tuple(image_coords[0:2].flatten().astype(int)), tuple(z_axis[0:2].flatten().astype(int)), (255, 0, 0), 2)
+
+        # Label x, y, z axes
+        cv2.putText(img, "X", tuple(x_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        cv2.putText(img, "Y", tuple(y_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        cv2.putText(img, "neg Z", tuple(z_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+        # Now reverse this and find the pose of the camera in the tag coordinate system
+        camera_pose = np.linalg.inv(pose)
+
+        # Find the camera pose in the field coordinate system   
+        print("Camera Pose:")
+        print(camera_pose)
+
+        # Camera center relative to the tag coordinate system
+        camera_center = np.array([[0], [0], [0], [1]], dtype=np.float32)
+        camera_center = np.dot(camera_pose, camera_center)
+
+        # Normalize the coordinates to image space
+        camera_center = camera_center[0:3] / camera_center[3]
+
+        print("Camera Center:",camera_center)
+
+              
+
+    return img
+
 
 
 
@@ -116,15 +214,10 @@ def main():
 
             # Process the frame here
             if args.display:
-                # Display apriltag detections
-                for detection in detections:
-                    # Draw a bounding box around the tag
-                    cv2.polylines(frame, [detection['corners'].astype(int)], True, (0, 255, 0), 2)
-                    # Draw the tag ID
-                    center_x = int(detection['corners'][:, 0].mean())
-                    center_y = int(detection['corners'][:, 1].mean())
-                    cv2.putText(frame, str(detection['id']), (center_x, center_y), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
-                    cv2.putText(frame, f"{detection['distance']:.2f}m", (center_x, center_y+40), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 2)
+                # Display apriltag boxes
+                frame = display_apriltag_boxes(frame, detections)
+
+                frame = display_apriltag_pose(frame, detections)
 
                 cv2.imshow(f"Camera {camera.camera_id}", frame)
             
