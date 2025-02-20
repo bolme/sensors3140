@@ -12,6 +12,18 @@ import os
 #
 # Robot Coordinate System: https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html
 
+
+# Field coordinate notes:
+# The x-axis is the long axis of the field, From the blue side to the red side
+# The z-axis is the vertical axis, from the floor to the ceiling
+# The y-axis is the short axis of the field in right-hand rule.  It runs to the left of the blue side to the right of the red side
+
+# Tag coordinate notes:
+# When detected by the apriltag library it is in image coordinates.  If the tag is upright:
+# The z-axes is depth and is positive away from the camera
+# The x-axis is positive to the right
+# The y-axis is positive down
+
 def load_apriltags(game_id):
     json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
     with open(json_path) as f:
@@ -35,12 +47,26 @@ def load_apriltags(game_id):
             
             translation_matrix = np.array([[x], [y], [z]])
 
-            transform_matrix = np.eye(4)
-            transform_matrix[:3, :3] = rotation_matrix
-            transform_matrix[:3, 3] = translation_matrix.flatten()
+            field_transform = np.eye(4)
+            field_transform[:3, :3] = rotation_matrix
+            field_transform[:3, 3] = translation_matrix.flatten()
             
             # add the transform to the dictionary
-            tag['transform'] = transform_matrix
+            tag['field_transform'] = field_transform
+
+            # we need a rotation matrix that converts from the field coordinate system to the tag coordinate system
+            
+            # Rewriting the field coordinate system to the tag coordinate system
+            # z => -x
+            # x => y
+            # y => -z
+            correction = np.zeros((4, 4))
+            correction[:3,:3] = np.array([[0, 0, -1], [1, 0, 0], [0, -1, 0]],dtype=np.float32)
+            correction[3,3] = 1
+
+            tag_transform = np.dot(field_transform, correction)
+
+            tag['tag_transform'] = tag_transform
 
         return data            
 
@@ -176,10 +202,19 @@ class LiveMapDisplay:
             # Draw the tag
             cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
 
+            # Draw the tag real world coordinates
+            text = f"({x:.2f}, {y:.2f}" #, {z:.2f})"
+            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+            text_x = int(pixel_x - text_size[0] / 2)
+            text_y = int(pixel_y + text_size[1] + 10)
+            cv2.putText(img, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
+
+
+
             # Find the point one meter in front of the tag so we can draw a line to it
             # This is the x axis of the tag coordinate system
-            tag_direction = np.array([[1.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
-            transform = tag['transform']
+            tag_direction = np.array([[0.0], [0.0], [-1.0], [1.0]]) # in homogenous coordinates
+            transform = tag['tag_transform']
             tag_direction = np.matmul(transform, tag_direction)
 
             # Draw the distance
@@ -203,8 +238,7 @@ class LiveMapDisplay:
             if global_camera_pose is not None:
                 # Draw a line from the tag to the camera
                 blue = (255, 0, 0)
-                #print("Global Camera Pose:")
-                #print(global_camera_pose)
+
                 camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[2,3]))
                 cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
                 cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
