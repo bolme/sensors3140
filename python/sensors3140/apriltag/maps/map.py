@@ -188,42 +188,69 @@ class LiveMapDisplay:
 
             color = (0, 0, 255)
             distance = None
-            global_camera_pose = None
 
+            camera_pose = None
             if id in self._detections:
                 color = (0, 255, 0)
                 distance = self._detections[id]['distance']
                 # convert the distace to a radius in pixels
                 distance = distance / self.field_length * self.image_width
-                global_camera_pose
-                # get the global camera pose
-                global_camera_pose = self._detections[id]['global_camera_pose']
+                camera_pose = self._detections[id]['camera_pose']
 
-            # Draw the tag
-            cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
+            if False:
+                # Draw the tag
+                cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
 
-            # Draw the tag real world coordinates
-            text = f"({x:.2f}, {y:.2f}" #, {z:.2f})"
-            text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-            text_x = int(pixel_x - text_size[0] / 2)
-            text_y = int(pixel_y + text_size[1] + 10)
-            cv2.putText(img, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
+                # Draw the tag real world coordinates
+                text = f"({x:.2f}, {y:.2f}" #, {z:.2f})"
+                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
+                text_x = int(pixel_x - text_size[0] / 2)
+                text_y = int(pixel_y + text_size[1] + 10)
+                cv2.putText(img, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
 
 
 
             # Find the point one meter in front of the tag so we can draw a line to it
             # This is the x axis of the tag coordinate system
+            tag_transform = tag['tag_transform']
+
+            tag_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
+            tag_location = np.matmul(tag_transform, tag_location)
+
             tag_direction = np.array([[0.0], [0.0], [-1.0], [1.0]]) # in homogenous coordinates
-            transform = tag['tag_transform']
-            tag_direction = np.matmul(transform, tag_direction)
+            tag_direction = np.matmul(tag_transform, tag_direction)
+
+            if camera_pose is not None:
+                camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
+                camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
+
+                camera_location = np.matmul(camera_pose, camera_location)
+                camera_direction = np.matmul(camera_pose, camera_direction)
+
+                camera_location = np.matmul(tag_transform, camera_location)
+                camera_direction = np.matmul(tag_transform, camera_direction)
+                camera_trans = camera_location[:3] / camera_location[3]
+                camera_dir = camera_direction[:3] / camera_direction[3]
+
+                #yellow
+                camera_color = (0, 255, 255)
+                cam_x, cam_y = self.real_world_to_pixel((camera_trans[0], camera_trans[1]))
+                cam_dir_x, cam_dir_y = self.real_world_to_pixel((camera_dir[0], camera_dir[1]))
+                cv2.circle(img, (int(cam_x),int(cam_y)), 10, camera_color, -1)
+                cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), camera_color, 3)
 
             # Draw the distance
             if distance is not None:
-                cv2.circle(img, (int(pixel_x),int(pixel_y)), int(distance), color, 2)
+                cv2.circle(img, (int(pixel_x),int(pixel_y)), int(distance), (88,88,88), 2)
             
             # Draw a line from the tag to the point one meter in front of the tag
+            tag_x, tag_y = self.real_world_to_pixel((tag_location[0], tag_location[1]))
             dir_x, dir_y = self.real_world_to_pixel((tag_direction[0], tag_direction[1]))
-            cv2.line(img, (int(pixel_x), int(pixel_y)), (int(dir_x), int(dir_y)), color, 1)
+            cv2.line(img, (int(tag_x), int(tag_y)), (int(dir_x), int(dir_y)), color, 1)
+            cv2.circle(img, (int(tag_x),int(tag_y)), 5, color, -1)
+
+
+
 
             text_size = cv2.getTextSize(str(id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
             text_x = int(pixel_x - text_size[0] / 2)
@@ -235,18 +262,20 @@ class LiveMapDisplay:
 
             cv2.putText(img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
 
-            if global_camera_pose is not None:
-                # Draw a line from the tag to the camera
-                blue = (255, 0, 0)
+            #if global_camera_pose is not None:
+            #    # Draw a line from the tag to the camera
+            #    blue = (77, 255, 255)
+            #
+            #    print(f"Global Tag Location: {tag_point.flatten()}")
 
-                camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[2,3]))
-                cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
-                cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
+            #    camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[1,3]))
+            #    cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
+            #    cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
 
 
         # plot a circle at the robot's location
-        robot_x, robot_y = self.real_world_to_pixel((self.robot_x, self.robot_y))
-        cv2.circle(img, (robot_x, robot_y), 10, (0, 255, 0), 10)
+        #robot_x, robot_y = self.real_world_to_pixel((self.robot_x, self.robot_y))
+        #cv2.circle(img, (robot_x, robot_y), 10, (0, 255, 0), 10)
 
 
         window_name = 'AprilTag Overlay'

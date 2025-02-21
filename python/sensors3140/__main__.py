@@ -57,14 +57,14 @@ def display_apriltag_pose(img, detections):
         camera_matrix = np.array([[kx, 0, cx], [0, ky, cy], [0, 0, 1]])
         transform = np.eye(4)
         projection_matrix = np.dot(camera_matrix, transform[:3, :])
-        print("Proj:",projection_matrix.shape)
-        print(projection_matrix)
+        #print("Proj:",projection_matrix.shape)
+        #print(projection_matrix)
 
         transformed_center = np.dot(projection_matrix, tag_center)
-        print("Center:",transformed_center)
+        #print("Center:",transformed_center)
 
         image_coords = transformed_center[0:2] / transformed_center[2]
-        print("Image Coords:",image_coords)
+        #print("Image Coords:",image_coords)
 
         # Draw the tag_center as a yellow circle outline
         cv2.circle(img, tuple(image_coords[0:2].flatten().astype(int)), 30, (0, 255, 255), 2)
@@ -95,25 +95,7 @@ def display_apriltag_pose(img, detections):
         # Label x, y, z axes
         cv2.putText(img, "X", tuple(x_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
         cv2.putText(img, "Y", tuple(y_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-        cv2.putText(img, "neg Z", tuple(z_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
-
-        # Now reverse this and find the pose of the camera in the tag coordinate system
-        camera_pose = np.linalg.inv(pose)
-
-        # Find the camera pose in the field coordinate system   
-        print("Camera Pose:")
-        print(camera_pose)
-
-        # Camera center relative to the tag coordinate system
-        camera_center = np.array([[0], [0], [0], [1]], dtype=np.float32)
-        camera_center = np.dot(camera_pose, camera_center)
-
-        # Normalize the coordinates to image space
-        camera_center = camera_center[0:3] / camera_center[3]
-
-        print("Camera Center:",camera_center)
-
-              
+        cv2.putText(img, "neg Z", tuple(z_axis[0:2].flatten().astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)              
 
     return img
 
@@ -203,11 +185,11 @@ def main():
             tables.setDouble(f"sensors3140/camera{camera.camera_id}/height", camera.height)
 
             detections = at_detector(frame_data)
-            print(f"Camera {camera.camera_id} detected {len(detections)} tags")
-            for detection in detections:
-                print(f"    Id: {detection['id']} Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
+            #print(f"Camera {camera.camera_id} detected {len(detections)} tags")
+            #for detection in detections:
+            #    print(f"    Id: {detection['id']} Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
                 #print(f"    Pose: {detection['pose']}")
-                print(f"    Pose Decomposed: {detection['pose_decomposed']}")
+            #    print(f"    Pose Decomposed: {detection['pose_decomposed']}")
 
             stream.add_input(frame_data)
 

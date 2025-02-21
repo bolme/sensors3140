@@ -70,6 +70,7 @@ class AprilTagDetector:
             pose = self.detector.detection_pose(r, self.camera_params, self.tag_size)
             trans = pose[0][0:3, 3]
             dist = np.sqrt((trans**2).sum())
+            print(f"Tag {r.tag_id} location: {trans.flatten()} distance: {dist}")
             bearing = np.arctan2(trans[0], trans[2]) * 180.0 / np.pi
             azimuth = np.arctan2(-trans[1], trans[2]) * 180.0 / np.pi
             detections.append({
@@ -87,19 +88,29 @@ class AprilTagDetector:
             })
 
             # This transforms points in the tags coordinate system to the field coordinate system
-            april_tag_pose = self.map_data['tags'][r.tag_id]['transform']
+            april_tag_pose = self.map_data['tags'][r.tag_id]['tag_transform']
 
-            print(f"Tag {r.tag_id} pose: {april_tag_pose}")
+            #print(f"Tag {r.tag_id} pose: {april_tag_pose}")
 
             # this is the pose of the tag in the camera coordinate system
             tag_pose = pose[0]
-            print(f"Tag {r.tag_id} camera pose: {tag_pose}")
+            #print(f"Tag {r.tag_id} camera pose: {tag_pose}")
+
+            detections[-1]['tag_pose'] = tag_pose
 
             # find the camera pose in the tag coordinate system
             camera_pose = np.linalg.inv(tag_pose)
 
+            detections[-1]['camera_pose'] = camera_pose
+
+            camera_translation = np.dot(camera_pose, np.array([[0], [0], [0], [1]]))
+            camera_translation = camera_translation[:3]/camera_translation[3]
+            print(f"    camera {self.camera_id} location: {camera_translation.flatten()}")
+
+            tag_transform = self.map_data['tags'][r.tag_id]['tag_transform']
+
             # find the camera pose in the field coordinate system
-            camera_location = np.dot(april_tag_pose, camera_pose)
+            camera_location = np.dot(tag_transform, camera_pose)
 
             # add the camera location to the detection
             detections[-1]['global_camera_pose'] = camera_location
