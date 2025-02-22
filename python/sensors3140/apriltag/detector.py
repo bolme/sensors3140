@@ -113,7 +113,7 @@ class AprilTagDetector:
             camera_translation = camera_translation[:3]/camera_translation[3]
 
             #print(f"Tag {r.tag_id} camera translation: {camera_translation}")
-            if r.tag_id not in self.map_data['tags']:
+            if r.tag_id >= len(self.map_data['tags']):
                 continue
 
             tag_transform = self.map_data['tags'][r.tag_id]['tag_transform']
