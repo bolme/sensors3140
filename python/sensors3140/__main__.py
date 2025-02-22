@@ -158,6 +158,8 @@ def main():
 
             print("Created camera", camera.camera_id)
 
+    print(f"Found {len(cameras)} cameras in directory {sensors3140.sensors3140_directory}.")
+
     time.sleep(3)
 
     at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters) for camera in cameras]
