@@ -114,6 +114,8 @@ try:
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         results = detector.detect(gray)
 
+        print(f"Detected {len(results)} tags.")
+
         if options.display:
             for each in results:
                 cX,cY = int(each.center[0]), int(each.center[1])
