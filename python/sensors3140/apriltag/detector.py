@@ -5,6 +5,7 @@ from sensors3140.apriltag.maps.map import load_apriltags
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 
+
 class AprilTagDetector:
     def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, tag_size=.20638, game_id="2025-reefscape"):
         self.detector_options = apriltag.DetectorOptions(families=tag_family)
@@ -65,8 +66,13 @@ class AprilTagDetector:
         azimuths = []
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
 
+        best_camera_pose = None
+        best_camera_translation = None
+        best_camera_direction = None
+        best_camera_tag_id = None
         for r in results:
             # camera param format: [fx, fy, cx, cy]
+            
             pose = self.detector.detection_pose(r, self.camera_params, self.tag_size)
             trans = pose[0][0:3, 3]
             dist = np.sqrt((trans**2).sum())
@@ -88,7 +94,7 @@ class AprilTagDetector:
             })
 
             # This transforms points in the tags coordinate system to the field coordinate system
-            april_tag_pose = self.map_data['tags'][r.tag_id]['tag_transform']
+            #april_tag_pose = self.map_data['tags'][r.tag_id]['tag_transform']
 
             #print(f"Tag {r.tag_id} pose: {april_tag_pose}")
 
@@ -105,15 +111,42 @@ class AprilTagDetector:
 
             camera_translation = np.dot(camera_pose, np.array([[0], [0], [0], [1]]))
             camera_translation = camera_translation[:3]/camera_translation[3]
-            print(f"    camera {self.camera_id} location: {camera_translation.flatten()}")
+
+            #print(f"Tag {r.tag_id} camera translation: {camera_translation}")
+            if r.tag_id not in self.map_data['tags']:
+                continue
 
             tag_transform = self.map_data['tags'][r.tag_id]['tag_transform']
 
-            # find the camera pose in the field coordinate system
-            camera_location = np.dot(tag_transform, camera_pose)
+            camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
+            camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
 
-            # add the camera location to the detection
-            detections[-1]['global_camera_pose'] = camera_location
+            camera_location = np.matmul(camera_pose, camera_location)
+            camera_direction = np.matmul(camera_pose, camera_direction)
+
+            camera_location = np.matmul(tag_transform, camera_location)
+            camera_direction = np.matmul(tag_transform, camera_direction)
+            camera_trans = camera_location[:3] / camera_location[3]
+            camera_dir = camera_direction[:3] / camera_direction[3]
+
+            # Score should be related to how close the camera is to the tag and how close the camera is to the axis of the tag.
+            # The closer the camera is to the tag, the higher the score.
+            # The score should be the highest when the camera is 45 degrees to the axis of the tag.
+            camera_location_angle = np.arctan2(camera_pose[1,3], camera_pose[0,3])
+            score = camera_location_angle
+
+            detections[-1]['camera_location'] = camera_location
+            detections[-1]['camera_direction'] = camera_direction
+            detections[-1]['camera_translation'] = camera_trans
+            detections[-1]['camera_location_score'] = score
+            detections[-1]['camera_pose'] = camera_pose
+
+            if best_camera_pose is None or score > best_camera_score:
+                best_camera_pose = camera_pose
+                best_camera_direction = camera_dir
+                best_camera_tag_id = r.tag_id
+                best_camera_translation = camera_trans
+                best_camera_score = score
 
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", dist)
@@ -133,6 +166,14 @@ class AprilTagDetector:
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/distances", distances)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/bearings", bearings)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/azimuths", azimuths)
+
+        if best_camera_pose is not None:
+            self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose", best_camera_pose.flatten())
+            self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_translation", best_camera_translation.flatten())
+            self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_direction", best_camera_direction.flatten())
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose_tag", best_camera_tag_id)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose_score", best_camera_score)
+
 
         end_time = time.time()
 

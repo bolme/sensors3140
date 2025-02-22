@@ -5,6 +5,7 @@ from sensors3140.camera.camera import FrameData
 import time
 from sensors3140.task_base import TaskBase, TaskPriority
 from sensors3140.tables.network_tables import NetworkTablesManager
+import sensors3140
 
 class StreamingTask(TaskBase):
     '''Low Latency Streaming Task'''
@@ -23,8 +24,10 @@ class StreamingTask(TaskBase):
         self.mjpegServer.setSource(self.camera)
 
         self.table = NetworkTablesManager()
-        self.table.setString(f"sensors3140/streams/{name}/info", f"http://localhost:{port}")
-        self.table.setString(f"sensors3140/streams/{name}/url", f"http://localhost:{port}/stream.mjpg")
+        self.table.setString(f"sensors3140/streams/{name}/ip", sensors3140.get_ip_addresses()[0])
+        self.table.setString(f"sensors3140/streams/{name}/host", sensors3140.get_hostname())
+        self.table.setDouble(f"sensors3140/streams/{name}/port", port)
+        self.table.setString(f"sensors3140/streams/{name}/url", f"http://{sensors3140.get_ip_addresses()[0]}:{port}/stream.mjpg")
         self.table.setDouble(f"sensors3140/streams/{name}/width", width)
         self.table.setDouble(f"sensors3140/streams/{name}/height", height)
         self.table.setDouble(f"sensors3140/streams/{name}/fps", fps)

@@ -239,6 +239,9 @@ class LiveMapDisplay:
                 cv2.circle(img, (int(cam_x),int(cam_y)), 10, camera_color, -1)
                 cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), camera_color, 3)
 
+                # draw a  line from the tag to the camera
+                cv2.line(img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), camera_color, 1)
+
             # Draw the distance
             if distance is not None:
                 cv2.circle(img, (int(pixel_x),int(pixel_y)), int(distance), (88,88,88), 2)

@@ -1,5 +1,6 @@
 import sensors3140 as sensors3140
 import os
+import os.path
 import json
 import argparse
 import cv2
@@ -104,29 +105,43 @@ def display_apriltag_pose(img, detections):
 
 def main():
 
-    tables = nt.NetworkTablesManager("127.0.0.1")
+    map_display = None
 
+    # Parse command line arguments
+    args = parse_args()
+
+    files = os.listdir(sensors3140.sensors3140_directory)
+
+    # Scan the configuration directory for network configuration
+    network_config_path = os.path.join(sensors3140.sensors3140_directory, "network.json")
+    if not os.path.exists(network_config_path):
+        print(f"Network configuration not found.  Creating at {network_config_path}")
+        data = {
+            "network_table_ip": "10.31.40.2",
+            "network_table_port": 1735
+        }
+        with open(network_config_path, "w") as f:
+            json.dump(data, f, indent=4)
+
+    with open(os.path.join(sensors3140.sensors3140_directory, "network.json"), "r") as f:
+        data = json.load(f)
+        print("Loaded network configuration")
+
+
+    tables = nt.NetworkTablesManager(data["network_table_ip"])
     # wait for network tables to connect
-    for _ in range(100): 
+    for _ in range(50): 
         if tables.is_connected():
             break
         time.sleep(0.1)
-
     if not tables.is_connected():
         print("WARNING: Failed to connect to NetworkTables")
     else:
         print("Connected to NetworkTables")
 
 
-    map_display = None
-
-    # Parse command line arguments
-    args = parse_args()
-
-    cameras = []
-
     # Scan the configuration directory for camera configurations
-    files = os.listdir(sensors3140.sensors3140_directory)
+    cameras = []
     for file in files:
         if file.startswith("camera_") and file.endswith(".json"):
             print(file)
