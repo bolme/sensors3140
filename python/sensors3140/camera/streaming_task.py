@@ -7,10 +7,12 @@ from sensors3140.task_base import TaskBase, TaskPriority
 from sensors3140.tables.network_tables import NetworkTablesManager
 import sensors3140
 
+CURRENT_PORT = 8081
+
 class StreamingTask(TaskBase):
     '''Low Latency Streaming Task'''
 
-    def __init__(self, name: str, priority: TaskPriority = TaskPriority.NORMAL, width: int = 320, height: int = 240, fps: int = 10, port: int = 8081):
+    def __init__(self, name: str, priority: TaskPriority = TaskPriority.NORMAL, width: int = 320, height: int = 240, fps: int = 10):
         super().__init__(name, priority)
         self.width = width
         self.height = height
@@ -20,6 +22,10 @@ class StreamingTask(TaskBase):
         # Initialize cscore components
         self.camera = cs.CvSource("cvsource", cs.VideoMode.PixelFormat.kMJPEG, 
                                 width, height, fps)
+        global CURRENT_PORT
+        port = CURRENT_PORT
+        CURRENT_PORT += 1
+        
         self.mjpegServer = cs.MjpegServer("httpserver", port)
         self.mjpegServer.setSource(self.camera)
 
