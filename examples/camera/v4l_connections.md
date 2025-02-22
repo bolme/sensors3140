@@ -1,7 +1,10 @@
+```bash
+v4l2-ctl --list-devices
+```
 
 ```bash
 v4l2-ctl --help-vidout
-v4l2-ctl --list-formats-ext
+v4l2-ctl --list-formats-ext --device=/dev/video2
 v4l2-ctl --list-framesizes=MJPG
 ```
 
