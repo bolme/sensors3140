@@ -90,7 +90,7 @@ class Camera:
             curr_time = time.time()
             frame_data = FrameData(img, self.frame_id, curr_time)
             calibrated = self.isCalibrated()
-            self.current_fps = 1.0 / (curr_time - self.prev_time)  # Calculate FPS
+            self.current_fps = 1.0 / max(curr_time - self.prev_time,0.001)  # Calculate FPS - avoid divide by zero
             if self.ave_fps < 0.0:
                 self.ave_fps = self.current_fps
             else:
