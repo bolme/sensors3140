@@ -5,7 +5,6 @@ import time
 import socket
 import numpy as np
 
-    
 class NetworkTablesManager:
 
     _instance = None
@@ -61,6 +60,17 @@ class NetworkTablesManager:
                 self._connect()
                 
             time.sleep(2.0)
+
+    def getCameraIds(self) -> list[str]:
+        camera_ids = []
+        for i in range(10):  # Assuming up to 10 cameras
+            try:
+                camera_id = f"camera{i}"
+                NetworkTables.getTable(camera_id).getEntry("connected").getBoolean(False)
+                camera_ids.append(camera_id)
+            except Exception as e:
+                pass
+        return camera_ids
     
     def is_connected(self) -> bool:
         return self.connected
@@ -77,7 +87,7 @@ class NetworkTablesManager:
         for i in range(1,len(path)-1):
             table = table.getSubTable(path[i])
         return table.getEntry(path[-1]).getDouble(default)
-    
+        
     def setDouble(self, path, value):
         if not self.connected:
             return
@@ -86,6 +96,24 @@ class NetworkTablesManager:
         for i in range(1,len(path)-1):
             table = table.getSubTable(path[i])
         table.getEntry(path[-1]).setDouble(value)
+
+    def getBoolean(self, path, default=False):
+        if not self.connected:
+            return default
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        return table.getEntry(path[-1]).getBoolean(default)
+    
+    def setBoolean(self, path, value):
+        if not self.connected:
+            return
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        table.getEntry(path[-1]).setBoolean(value)
 
     def setString(self, path, value):
         if not self.connected:
@@ -106,25 +134,13 @@ class NetworkTablesManager:
             table = table.getSubTable(path[i])
         return table.getEntry(path[-1]).getString(default)
     
-    def getInteger(self, path, default=-1):
-        if not self.connected:
-            return -1
-        path = path.split('/')
-        table = NetworkTables.getTable(path[0])
-        for i in range(1,len(path)-1):
-            table = table.getSubTable(path[i])
-        value = table.getEntry(path[-1]).getDouble(default)
-        return int(value+0.5) # Round to nearest integer
     
     def setInteger(self, path, value):
-        if not self.connected:
-            return
-        path = path.split('/')
-        table = NetworkTables.getTable(path[0])
-        for i in range(1,len(path)-1):
-            table = table.getSubTable(path[i])
-        table.getEntry(path[-1]).setDouble(value)
+        self.setDouble(path, value)
 
+    def getInteger(self, path, default=None):
+        value = self.getDouble(path, default)
+        return int(value+0.5) # Round to nearest integer
 
 
     def setDoubleArray(self, path, value):
@@ -135,6 +151,26 @@ class NetworkTablesManager:
         for i in range(1,len(path)-1):
             table = table.getSubTable(path[i])
         table.getEntry(path[-1]).setDoubleArray(value)
+
+    def getDoubleArray(self, path, default = None):
+        if not self.connected:
+            return
+        path = path.split('/')
+        table = NetworkTables.getTable(path[0])
+        for i in range(1,len(path)-1):
+            table = table.getSubTable(path[i])
+        double_array = table.getEntry(path[-1]).getDoubleArray(default)
+        return double_array
+    
+    def setIntegerArray(self, path, value):
+        self.setDoubleArray(path, value)
+
+    def getIntegerArray(self, path, default = None):
+        double_array = self.getDoubleArray(path, default)
+        return [int(x+0.5) for x in double_array]
+    
+
+        
                                                 
 
     def get_robot_time(self) -> float:

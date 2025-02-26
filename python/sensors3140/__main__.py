@@ -7,6 +7,7 @@ import cv2
 from sensors3140.apriltag.detector import AprilTagDetector
 from sensors3140.camera.streaming_task import StreamingTask
 import numpy as np
+import psutil
 
 import sensors3140.tables.network_tables as nt
 
@@ -151,19 +152,27 @@ def main():
             print(data)
 
             # Create a camera object from the configuration
-            camera = sensors3140.Camera(**data)
+            camera = sensors3140.Camera(frame_stas=False,**data)
 
             # Add the camera to the list
             cameras.append(camera)
 
+            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps", camera.fps)
+            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/parameters", camera.parameters)
+            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/distortion", camera.dist_coeffs)
+            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/fov", camera.get_fov())
+            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/size", [camera.width,camera.height])
+
             print("Created camera", camera.camera_id)
 
     print(f"Found {len(cameras)} cameras in directory {sensors3140.sensors3140_directory}.")
+    
+    camera_ids = [camera.camera_id for camera in cameras]
+    tables.setDoubleArray("sensors3140/camera_ids",camera_ids)
 
     time.sleep(3)
 
     at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters) for camera in cameras]
-
 
     # Create a streaming task for each camera
     streaming_tasks = [StreamingTask(f"Camera {camera.camera_id} Streaming Task") for camera in cameras]
@@ -177,6 +186,12 @@ def main():
         current_time = time.time()
 
         tables.setDouble("sensors3140/timestamp", current_time)
+        load_average = os.getloadavg()
+        tables.setDoubleArray("sensors3140/load_average", load_average)
+        memory_usage = psutil.virtual_memory().percent
+        tables.setDouble("sensors3140/memory_usage", memory_usage)
+        #tables.setDoubleArray("sensors3140/temperature", [psutil.sensors_temperatures().get('coretemp')[0].current])
+
 
 
         dt = current_time - prev_time
@@ -194,19 +209,18 @@ def main():
             frame = frame_data.frame
             frame_id = frame_data.frame_id
             prev_time = frame_data.timestamp
-            #print(f"Frame ID: {frame_id}, Size: {frame.shape}, Time: {prev_time}")
+            
+            # Update the live camera values
             tables.setDouble(f"sensors3140/camera{camera.camera_id}/frame_id", frame_id)
             tables.setDouble(f"sensors3140/camera{camera.camera_id}/timestamp", prev_time)
-            #tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps", camera.fps)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/width", camera.width)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/height", camera.height)
+            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps_current", camera.current_fps)
+            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps_ave", camera.ave_fps)
+            tables.setDouble(f"sensors3140/camera{camera.camera_id}/exposure", camera.get_exposure())
+            tables.setDouble(f"sensors3140/camera{camera.camera_id}/gain", camera.get_gain())
+            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/frame_stats", camera.get_frame_stats())
+
 
             detections = at_detector(frame_data)
-            #print(f"Camera {camera.camera_id} detected {len(detections)} tags")
-            #for detection in detections:
-            #    print(f"    Id: {detection['id']} Distance: {detection['distance']:.2f}m, Bearing: {detection['bearing']:.2f}°, Azimuth: {detection['azimuth']:.2f}°")
-                #print(f"    Pose: {detection['pose']}")
-            #    print(f"    Pose Decomposed: {detection['pose_decomposed']}")
 
             stream.add_input(frame_data)
 

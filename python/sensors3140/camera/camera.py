@@ -21,12 +21,15 @@ class FrameData:
         return f"FrameData(frame_id={self.frame_id}, timestamp={self.timestamp})"
 
 class Camera:
-    def __init__(self, camera_id=None, frame_size=None, fps=None, **kwargs):
+    def __init__(self, camera_id=None, frame_size=None, fps=None, frame_stas=False, **kwargs):
         try:
             self.camera_id = int(camera_id)
         except:
             self.camera_id = camera_id
 
+        self.frame_stats_enabled = frame_stas
+
+        self.fps = fps
         self.frame_size = frame_size
         self.width, self.height = frame_size
 
@@ -36,6 +39,9 @@ class Camera:
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         self.cap.set(cv2.CAP_PROP_FPS, fps)
+
+        self.current_fps = -1.0
+        self.ave_fps = -1.0
 
         self.frame_id = 0
         self.prev_time = time.time()
@@ -84,11 +90,38 @@ class Camera:
             curr_time = time.time()
             frame_data = FrameData(img, self.frame_id, curr_time)
             calibrated = self.isCalibrated()
+            self.current_fps = 1.0 / (curr_time - self.prev_time)  # Calculate FPS
+            if self.ave_fps < 0.0:
+                self.ave_fps = self.current_fps
+            else:
+                mix_ratio = min(1.0/self.fps,0.1)
+                self.ave_fps = (1-mix_ratio) * self.ave_fps + mix_ratio * self.current_fps
             self.prev_time = curr_time
             self.frame_id += 1
             self.last_frame = img
 
-            if self.apriltag_detector is not None:
+            # Compute current frame data: min, max, mean, std
+            frame_stats = []
+            if self.frame_stats_enabled:
+                frame_stats = [np.min(img), np.max(img), np.mean(img), np.std(img)]
+
+                #denoised image from a median filter
+                denoised_img = cv2.medianBlur(img, 5)
+                noise_img = img - denoised_img
+                noise_est = np.std(noise_img)
+                frame_stats.append(noise_est)
+
+                # compute an dirivative score
+                sobelx = cv2.Sobel(denoised_img, cv2.CV_64F, 1, 0, ksize=5)
+                sobely = cv2.Sobel(denoised_img, cv2.CV_64F, 0, 1, ksize=5)
+                sobel = np.sqrt(sobelx**2 + sobely**2)
+                sobel_score = np.mean(sobel)
+                frame_stats.append(sobel_score)
+
+                self.frame_stats = frame_stats
+
+                
+            if False and self.apriltag_detector is not None:
                 if calibrated:
                     detections = self.apriltag_detector(img)
                     frame_data.detections = detections
@@ -107,6 +140,30 @@ class Camera:
     def enable_apriltags(self):
         self.apriltag_detector = AprilTagDetector(camera_params=self.parameters)
         pass
+
+    def get_fov(self):
+        '''Estimate the x and y fov in degrees from the camera size and parameters.'''
+        fx,fy,cx,cy = self.parameters
+        fov_x = 2 * np.arctan(self.width / (2 * fx)) * 180 / np.pi
+        fov_y = 2 * np.arctan(self.height / (2 * fy)) * 180 / np.pi
+        return fov_x, fov_y
+    
+    def get_exposure(self):
+        return self.cap.get(cv2.CAP_PROP_EXPOSURE)
+    
+    def get_gain(self):
+        return self.cap.get(cv2.CAP_PROP_GAIN)
+    
+    def get_frame_stats(self):
+        try:
+            if self.frame_stats_enabled:
+                return self.frame_stats
+            else:
+                return [-1,-1,-1,-1,-1,-1]
+        except:
+            return [-1,-1,-1,-1,-1,-1]
+    
+        
 
     
 

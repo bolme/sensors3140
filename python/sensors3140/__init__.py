@@ -9,7 +9,7 @@ import time
 import logging
 import os
 
-from .camera import Camera
+from sensors3140.camera import Camera
 
 # Config directory <home>/sensors3140/
 # This is the directory where configuration files are stored.

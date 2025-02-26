@@ -26,6 +26,7 @@ class AprilTagDetector:
         self.tag_size = tag_size
         self.camera_id = camera_id
         self.detections = []
+        self.decision_quality_average = None
 
         self.load_map(game_id)
 
@@ -64,6 +65,10 @@ class AprilTagDetector:
         distances = []
         bearings = []
         azimuths = []
+        hamming = []
+        goodness = []
+        decision_margin = []
+
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
 
         best_camera_pose = None
@@ -79,6 +84,9 @@ class AprilTagDetector:
             print(f"Tag {r.tag_id} location: {trans.flatten()} distance: {dist}")
             bearing = np.arctan2(trans[0], trans[2]) * 180.0 / np.pi
             azimuth = np.arctan2(-trans[1], trans[2]) * 180.0 / np.pi
+            goodness.append(r.goodness)
+            hamming.append(r.hamming)
+            decision_margin.append(r.decision_margin)
             detections.append({
                 'id': r.tag_id,
                 'center': r.center,
@@ -166,7 +174,37 @@ class AprilTagDetector:
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/distances", distances)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/bearings", bearings)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/azimuths", azimuths)
+        self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/goodness", goodness)
+        self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/hamming", hamming)
+        self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/decision_margin", decision_margin)
+        # compute average hamming distance
+        if len(hamming) > 0:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_hamming", sum(hamming) / len(hamming))
+        else:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_hamming", 0)
 
+        # compute average goodness
+        if len(goodness) > 0:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_goodness", sum(goodness) / len(goodness))
+        else:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_goodness", 0)
+
+        # compute average decision margin
+        if len(decision_margin) > 0:
+            avereage_decision_margin = sum(decision_margin) / len(decision_margin)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", avereage_decision_margin)
+            decision_max = 80.0
+            decision_min = 65.0
+            decision_quality = (sum(decision_margin) / len(decision_margin) - decision_min) / (decision_max - decision_min)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/decision_quality_current", decision_quality)
+            if self.decision_quality_average is None:
+                self.decision_quality_average = decision_quality
+            else:
+                self.decision_quality_average = (self.decision_quality_average * 0.98) + (decision_quality * 0.02)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/decision_quality_average", self.decision_quality_average)
+        else:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", 0)
+                                 
         if best_camera_pose is not None:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose", best_camera_pose.flatten())
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_translation", best_camera_translation.flatten())
