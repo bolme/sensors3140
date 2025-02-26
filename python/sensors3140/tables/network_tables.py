@@ -73,6 +73,9 @@ class NetworkTablesManager:
         return camera_ids
     
     def is_connected(self) -> bool:
+        '''
+        Returns True if connected to the robot
+        '''
         return self.connected
     
     def shutdown(self):
@@ -140,7 +143,10 @@ class NetworkTablesManager:
 
     def getInteger(self, path, default=None):
         value = self.getDouble(path, default)
-        return int(value+0.5) # Round to nearest integer
+        try:
+            return int(value+0.5) # Round to nearest integer
+        except:
+            return default
 
 
     def setDoubleArray(self, path, value):
@@ -154,7 +160,7 @@ class NetworkTablesManager:
 
     def getDoubleArray(self, path, default = None):
         if not self.connected:
-            return
+            return []
         path = path.split('/')
         table = NetworkTables.getTable(path[0])
         for i in range(1,len(path)-1):
@@ -167,6 +173,7 @@ class NetworkTablesManager:
 
     def getIntegerArray(self, path, default = None):
         double_array = self.getDoubleArray(path, default)
+        print(double_array)
         return [int(x+0.5) for x in double_array]
     
 

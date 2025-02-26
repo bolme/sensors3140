@@ -174,38 +174,38 @@ class NTMapDisplay:
 
         cv2.circle(self.img, (x, y), 10, (0, 255, 0), -1)
 
-    def setAprilTagDetections(self,tag_ids):
-        self.tag_ids = tag_ids
+    def set_current_detections(self,tag_ids, distances, bearings):
+        try:
+            assert len(tag_ids) == len(distances) == len(bearings), "Tag, distance, and bearing arrays must be the same length"
+            self.tag_ids = tag_ids
+            self.distances = distances
+            self.bearings = bearings
+        except:
+            print("Warning: Could not set AprilTag Detections")
 
+    def set_camera_pose(self, best_camera_translation, best_camera_direction, best_camera_pose_tag):
+        self.best_camera_translation = best_camera_translation
+        self.best_camera_direction = best_camera_direction
+        self.best_camera_pose_tag = best_camera_pose_tag
     
 
     def update(self):
         '''Update from Network Tables'''
-        print(self.tables.getDouble("sensors3140/timestamp"))
+        print("Connected to Network Tables:",self.tables.is_connected())
+        # Get the timestamp
+        print("Timestamp:",self.tables.getDouble("sensors3140/timestamp"))
 
-        # Find the possible camera ids from the networktable apriltags
-        camera_ids = []
-        
+        tag_ids = self.tables.getIntegerArray("sensors3140/apriltags/camera1/ids",[])
+        distances = self.tables.getDoubleArray("sensors3140/apriltags/camera1/distances",[])
+        bearings = self.tables.getDoubleArray("sensors3140/apriltags/camera1/bearings",[])
+        self.set_current_detections(tag_ids, distances, bearings)
 
+        # update camera location data from network tables - best_camera_translation and best_camera_direction
+        best_camera_translation = self.tables.getDoubleArray("sensors3140/apriltags/camera1/best_camera_translation")
+        best_camera_direction = self.tables.getDoubleArray("sensors3140/apriltags/camera1/best_camera_direction")
+        best_camera_pose_tag = self.tables.getInteger("sensors3140/apriltags/camera1/best_camera_pose_tag",-1)
 
-
-        # Update the robot's position from Network Tables - best_camera_translation and best_camera_direction
-        best_camera_translation = self.tables.getDoubleArray("sensors3140/apriltags/camera{self.camera_id}/best_camera_translation")
-        best_camera_direction = self.tables.getDoubleArray("sensors3140/apriltags/best_camera_direction")
-
-        camera_rotatation = best_camera_direction - best_camera_translation
-
-        # Camera rotation in the x and y direction
-        camera_angle = np.arctan2(camera_rotatation[1], camera_rotatation[0])
-        
-        if best_camera_translation and best_camera_direction:
-            self.robot_x = best_camera_translation[0]
-            self.robot_y = best_camera_translation[1]
-            
-
-
-
-
+        self.set_camera_pose(best_camera_translation, best_camera_direction, best_camera_pose_tag)
 
 
 
@@ -221,7 +221,6 @@ class NTMapDisplay:
 
         img = self.img.copy()
 
-        cv2.putText(img)
     
         for tag in self.map_data['tags']:
             id = tag['ID']
@@ -238,12 +237,22 @@ class NTMapDisplay:
             distance = None
 
             camera_pose = None
-            if id in self._detections:
+            if id in self.tag_ids:
+                distance = dict(zip(self.tag_ids, self.distances))[id]
                 color = (0, 255, 0)
-                distance = self._detections[id]['distance']
                 # convert the distace to a radius in pixels
                 distance = distance / self.field_length * self.image_width
-                camera_pose = self._detections[id]['camera_pose']
+
+                if self.best_camera_pose_tag == id:
+                    # draw the camera translation and direction
+                    print("Drawing Camera")
+                    print("   ",self.best_camera_translation)
+                    cam_x, cam_y = self.real_world_to_pixel((self.best_camera_translation[0], self.best_camera_translation[1]))
+                    print("   x,y",cam_x,cam_y)
+                    cam_dir_x, cam_dir_y = self.real_world_to_pixel((self.best_camera_direction[0], self.best_camera_direction[1]))
+                    cv2.circle(img, (int(cam_x),int(cam_y)), 10, (0, 255, 255), -1)
+                    cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), (0, 255, 255), 3) 
+                    cv2.line(img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), (0, 255, 255), 1)
 
             if False:
                 # Draw the tag
@@ -335,7 +344,7 @@ class NTMapDisplay:
 
 if __name__ == "__main__":
     print('Creating Map...')
-    nt.NetworkTablesManager('10.31.40.2')
+    nt.NetworkTablesManager('127.0.0.1')
     display = NTMapDisplay("2025-reefscape")
     display.load()
     print('Loaded...')
