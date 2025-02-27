@@ -201,9 +201,9 @@ class NTMapDisplay:
         self.set_current_detections(tag_ids, distances, bearings)
 
         # update camera location data from network tables - best_camera_translation and best_camera_direction
-        best_camera_translation = self.tables.getDoubleArray("sensors3140/apriltags/camera1/best_camera_translation")
-        best_camera_direction = self.tables.getDoubleArray("sensors3140/apriltags/camera1/best_camera_direction")
-        best_camera_pose_tag = self.tables.getInteger("sensors3140/apriltags/camera1/best_camera_pose_tag",-1)
+        best_camera_translation = self.tables.getDoubleArray("sensors3140/apriltags/camera1/camera_position")
+        best_camera_direction = self.tables.getDoubleArray("sensors3140/apriltags/camera1/camera_direction")
+        best_camera_pose_tag = self.tables.getInteger("sensors3140/apriltags/camera1/camera_position_tag",-1)
 
         self.set_camera_pose(best_camera_translation, best_camera_direction, best_camera_pose_tag)
 
@@ -213,146 +213,106 @@ class NTMapDisplay:
 
         
     def display(self):
-        # Create a 3x3 transform that converts real world coordinates to pixel coordinates
-        #rotation_matrix = np.eye(3)
-        #scale_matrix = np.array([[self.image_width / self.field_width, 0, 0], [0, self.image_height / self.field_length, 0], [0, 0, 1]])
-        #translation_matrix = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        #transform_matrix = np.dot(scale_matrix, rotation_matrix)
-        #transform_matrix = np.dot(transform_matrix,translation_matrix)
-
-
-        img = self.img.copy()
-
-    
+        """Display the field map with AprilTags and detected positions."""
+        # Create a copy of the image to draw on
+        display_img = self.img.copy()
+        
+        # Draw each tag on the field
         for tag in self.map_data['tags']:
-            id = tag['ID']
-            x = tag['pose']['translation']['x']
-            y = tag['pose']['translation']['y']
-            z = tag['pose']['translation']['z']
-
-                                           
-            # Compute the pixel coordinates of the tag
-            tag_point = np.array([[x], [y], [1.0]])
-            pixel_x, pixel_y = self.real_world_to_pixel((x, y))
-
-            color = (0, 0, 255)
-            distance = None
-
-            camera_pose = None
-            if id in self.tag_ids:
-                distance = dict(zip(self.tag_ids, self.distances))[id]
-                color = (0, 255, 0)
-                # convert the distace to a radius in pixels
-                distance = distance / self.field_length * self.image_width
-
-                if self.best_camera_pose_tag == id:
-                    # draw the camera translation and direction
-                    #print("Drawing Camera")
-                    print("   ",self.best_camera_translation)
-                    cam_x, cam_y = self.real_world_to_pixel((self.best_camera_translation[0], self.best_camera_translation[1]))
-                    #print("   x,y",cam_x,cam_y)
-                    cam_dir_x, cam_dir_y = self.real_world_to_pixel((self.best_camera_direction[0], self.best_camera_direction[1]))
-                    cv2.circle(img, (int(cam_x),int(cam_y)), 10, (0, 255, 255), -1)
-                    cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), (0, 255, 255), 3) 
-                    cv2.line(img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), (0, 255, 255), 1)
-
-            if False:
-                # Draw the tag
-                cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
-
-                # Draw the tag real world coordinates
-                text = f"({x:.2f}, {y:.2f}" #, {z:.2f})"
-                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-                text_x = int(pixel_x - text_size[0] / 2)
-                text_y = int(pixel_y + text_size[1] + 10)
-                cv2.putText(img, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
-
-
-
-            # Find the point one meter in front of the tag so we can draw a line to it
-            # This is the x axis of the tag coordinate system
-            tag_transform = tag['tag_transform']
-
-            tag_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
-            tag_location = np.matmul(tag_transform, tag_location)
-
-            tag_direction = np.array([[0.0], [0.0], [-1.0], [1.0]]) # in homogenous coordinates
-            tag_direction = np.matmul(tag_transform, tag_direction)
-
-            if camera_pose is not None:
-                camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
-                camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
-
-                camera_location = np.matmul(camera_pose, camera_location)
-                camera_direction = np.matmul(camera_pose, camera_direction)
-
-                camera_location = np.matmul(tag_transform, camera_location)
-                camera_direction = np.matmul(tag_transform, camera_direction)
-                camera_trans = camera_location[:3] / camera_location[3]
-                camera_dir = camera_direction[:3] / camera_direction[3]
-
-                #yellow
-                camera_color = (0, 255, 255)
-                cam_x, cam_y = self.real_world_to_pixel((camera_trans[0], camera_trans[1]))
-                cam_dir_x, cam_dir_y = self.real_world_to_pixel((camera_dir[0], camera_dir[1]))
-                cv2.circle(img, (int(cam_x),int(cam_y)), 10, camera_color, -1)
-                cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), camera_color, 3)
-
-                # draw a  line from the tag to the camera
-                cv2.line(img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), camera_color, 1)
-
-            # Draw the distance
-            if distance is not None:
-                cv2.circle(img, (int(pixel_x),int(pixel_y)), int(distance), (88,88,88), 2)
+            tag_id = tag['ID']
+            tag_x = tag['pose']['translation']['x']
+            tag_y = tag['pose']['translation']['y']
+            tag_z = tag['pose']['translation']['z']
             
-            # Draw a line from the tag to the point one meter in front of the tag
-            tag_x, tag_y = self.real_world_to_pixel((tag_location[0], tag_location[1]))
-            dir_x, dir_y = self.real_world_to_pixel((tag_direction[0], tag_direction[1]))
-            cv2.line(img, (int(tag_x), int(tag_y)), (int(dir_x), int(dir_y)), color, 1)
-            cv2.circle(img, (int(tag_x),int(tag_y)), 5, color, -1)
-
-
-
-
-            text_size = cv2.getTextSize(str(id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+            # Calculate pixel coordinates for this tag
+            pixel_x, pixel_y = self.real_world_to_pixel((tag_x, tag_y))
+            
+            # Default color for tags (red)
+            tag_color = (0, 0, 255)
+            tag_distance = None
+            
+            # Check if this tag is currently being detected
+            if tag_id in self.tag_ids:
+                # Get distance for this tag and change color to green for detected tags
+                tag_distance = dict(zip(self.tag_ids, self.distances))[tag_id]
+                tag_color = (0, 255, 0)
+                # Convert distance to pixel radius
+                tag_distance = tag_distance / self.field_length * self.image_width
+                
+                # If this is the tag used for camera pose estimation
+                if self.best_camera_pose_tag == tag_id:
+                    # Draw camera position and direction
+                    cam_x, cam_y = self.real_world_to_pixel((self.best_camera_translation[0], self.best_camera_translation[1]))
+                    cam_dir_x, cam_dir_y = self.real_world_to_pixel((self.best_camera_direction[0], self.best_camera_direction[1]))
+                    
+                    # Yellow dot for camera position
+                    cv2.circle(display_img, (int(cam_x), int(cam_y)), 10, (0, 255, 255), -1)
+                    # Line showing camera direction
+                    cv2.line(display_img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), (0, 255, 255), 3) 
+                    # Line connecting tag to camera
+                    cv2.line(display_img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), (0, 255, 255), 1)
+            
+            # Calculate tag orientation using the tag transform matrix
+            tag_transform = tag['tag_transform']
+            
+            # Calculate tag position in world coordinates
+            tag_location = np.array([[0.0], [0.0], [0.0], [1.0]])  # Homogeneous coordinates 
+            tag_location = np.matmul(tag_transform, tag_location)
+            
+            # Calculate tag direction vector (1m in front of tag)
+            tag_direction = np.array([[0.0], [0.0], [-1.0], [1.0]])  # Homogeneous coordinates
+            tag_direction = np.matmul(tag_transform, tag_direction)
+            
+            # Draw distance circle if tag is detected
+            if tag_distance is not None:
+                cv2.circle(display_img, (int(pixel_x), int(pixel_y)), int(tag_distance), (88, 88, 88), 2)
+            
+            # Draw tag direction indicator
+            tag_pixel_x, tag_pixel_y = self.real_world_to_pixel((tag_location[0], tag_location[1]))
+            dir_pixel_x, dir_pixel_y = self.real_world_to_pixel((tag_direction[0], tag_direction[1]))
+            cv2.line(display_img, (int(tag_pixel_x), int(tag_pixel_y)), 
+                    (int(dir_pixel_x), int(dir_pixel_y)), tag_color, 1)
+            cv2.circle(display_img, (int(tag_pixel_x), int(tag_pixel_y)), 5, tag_color, -1)
+            
+            # Draw tag ID label
+            text_size = cv2.getTextSize(str(tag_id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
             text_x = int(pixel_x - text_size[0] / 2)
             text_y = int(pixel_y - text_size[1] / 2)
+            
+            # Position text above or below the tag depending on tag's position on field
             if text_y < self.image_height / 2:
                 text_y += text_size[1] + 20
             else:
                 text_y -= text_size[1] - 10
+                
+            cv2.putText(display_img, str(tag_id), (text_x, text_y), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, tag_color, 2, cv2.LINE_AA)
 
-            cv2.putText(img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-
-            #if global_camera_pose is not None:
-            #    # Draw a line from the tag to the camera
-            #    blue = (77, 255, 255)
-            #
-            #    print(f"Global Tag Location: {tag_point.flatten()}")
-
-            #    camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[1,3]))
-            #    cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
-            #    cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
-
-
-        # plot a circle at the robot's location
-        #robot_x, robot_y = self.real_world_to_pixel((self.robot_x, self.robot_y))
-        #cv2.circle(img, (robot_x, robot_y), 10, (0, 255, 0), 10)
-
-
+        # Display the final image
         window_name = 'AprilTag Overlay'
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-        cv2.imshow(window_name, img)
+        cv2.imshow(window_name, display_img)
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='AprilTag Field Map Display')
+    parser.add_argument('--server', default='127.0.0.1', help='NetworkTables server address')
+    parser.add_argument('--game', default='2025-reefscape', help='Game ID for field map')
+    return parser.parse_args()
 
 if __name__ == "__main__":
     print('Creating Map...')
-    nt.NetworkTablesManager('127.0.0.1')
-    display = NTMapDisplay("2025-reefscape")
+    args = parse_arguments()
+    
+    # Initialize network tables with the server address
+    nt.NetworkTablesManager(args.server)
+    
+    # Create the display with the specified game ID
+    display = NTMapDisplay(args.game)
     display.load()
-    print('Loaded...')
+    print(f'Loaded {args.game} map...')
+    print(f'Connected to NetworkTables server: {args.server}')
+    
     while True:
-        #print("Map Loop.")
-
         display.update()
         display.display()
         key = cv2.waitKey(1)
@@ -361,8 +321,7 @@ if __name__ == "__main__":
             break
 
     print("Closing Map")
-
-
+    cv2.destroyAllWindows()
     
     
     
