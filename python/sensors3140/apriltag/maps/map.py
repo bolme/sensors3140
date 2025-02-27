@@ -113,37 +113,6 @@ def _load_apriltags(game_id):
 
             field_map.addTag(id, x, y, z, qw, qx, qy, qz)
 
-
-            # Create a transform that converts from the tag coordinate system to the field coordinate system
-            rotation_matrix = np.array([[1 - 2*qy**2 - 2*qz**2, 2*qx*qy - 2*qz*qw, 2*qx*qz + 2*qy*qw],
-                                        [2*qx*qy + 2*qz*qw, 1 - 2*qx**2 - 2*qz**2, 2*qy*qz - 2*qx*qw],
-                                        [2*qx*qz - 2*qy*qw, 2*qy*qz + 2*qx*qw, 1 - 2*qx**2 - 2*qy**2]])
-            
-            translation_matrix = np.array([[x], [y], [z]])
-
-            field_transform = np.eye(4)
-            field_transform[:3, :3] = rotation_matrix
-            field_transform[:3, 3] = translation_matrix.flatten()
-            
-            # add the transform to the dictionary
-            tag['field_transform'] = field_transform
-
-            # we need a rotation matrix that converts from the field coordinate system to the tag coordinate system
-            
-            # Rewriting the field coordinate system to the tag coordinate system
-            # z => -x
-            # x => y
-            # y => -z
-            correction = np.zeros((4, 4))
-            correction[:3,:3] = np.array([[0, 0, -1], [1, 0, 0], [0, -1, 0]],dtype=np.float32)
-            correction[3,3] = 1
-
-            tag_transform = np.dot(field_transform, correction)
-
-            #print(f"Initial tag transform for Tag_{id}: {tag_transform}")
-
-            tag['tag_transform'] = tag_transform
-
         field_map.printTagTransform()
 
         return field_map            
