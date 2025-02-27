@@ -24,10 +24,82 @@ import os
 # The x-axis is positive to the right
 # The y-axis is positive down
 
-def load_apriltags(game_id):
+GLOBAL_MAP_STORAGE = {}
+
+class FieldMap(object):
+    def __init__(self, field_width, field_length):
+        self.field_width = field_width
+        self.field_length = field_length
+
+        self.tag_data = {}
+
+    def addTag(self, id, x, y, z, qw, qx, qy, qz):
+        # Save the tag data to a dictionary of dictionaries
+        location = np.array([x, y, z])
+        quaternion = np.array([qw, qx, qy, qz])
+
+        self.tag_data[id] = {'location': location, 'quaternion': quaternion}
+
+        # Create a transform that converts from the tag coordinate system to the field coordinate system
+        rotation_matrix = np.array([[1 - 2*qy**2 - 2*qz**2, 2*qx*qy - 2*qz*qw, 2*qx*qz + 2*qy*qw],
+                                    [2*qx*qy + 2*qz*qw, 1 - 2*qx**2 - 2*qz**2, 2*qy*qz - 2*qx*qw],
+                                    [2*qx*qz - 2*qy*qw, 2*qy*qz + 2*qx*qw, 1 - 2*qx**2 - 2*qy**2]])
+        
+        translation_matrix = np.array([[x], [y], [z]])
+
+        field_transform = np.eye(4)
+        field_transform[:3, :3] = rotation_matrix
+        field_transform[:3, 3] = translation_matrix.flatten()
+
+        correction = np.zeros((4, 4))
+        correction[:3,:3] = np.array([[0, 0, -1], [1, 0, 0], [0, -1, 0]],dtype=np.float32)
+        correction[3,3] = 1
+
+        tag_transform = np.dot(field_transform, correction)
+
+        self.tag_data[id]['field_transform'] = field_transform
+        self.tag_data[id]['tag_transform'] = tag_transform
+        self.tag_data[id]['location'] = location
+        self.tag_data[id]['quaternion'] = quaternion
+
+        print(f"Initial tag transform for Tag_{id}: {tag_transform}")
+
+    def getTagLocation(self, id):
+        return self.tag_data[id]['location']
+
+    def getTagTransform(self, id):
+        return self.tag_data[id]['tag_transform']
+    
+    def printTagTransform(self, id = None):
+        if id is None:
+            for id in self.tag_data:
+                self.printTagTransform(id)
+        else:
+            assert id in self.tag_data, f"Tag_{id} not found"
+            print(f"Tag {id} Transform: {self.tag_data[id]['field_transform']}")
+
+    def getFieldSize(self):
+        return self.field_width, self.field_length
+    
+    def getAllTags(self):
+        return self.tag_data.keys()
+    
+
+def get_map(game_id):
+
+    if game_id not in GLOBAL_MAP_STORAGE:
+        tags = _load_apriltags(game_id)
+        GLOBAL_MAP_STORAGE[game_id] = tags
+
+    return GLOBAL_MAP_STORAGE[game_id]
+
+def _load_apriltags(game_id):
     json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
     with open(json_path) as f:
         data = json.load(f)
+
+        field_map = FieldMap(data['field']['width'], data['field']['length'])
+
         for tag in data['tags']:
             id = tag['ID']
             x = tag['pose']['translation']['x']
@@ -38,6 +110,8 @@ def load_apriltags(game_id):
             qx = tag['pose']['rotation']['quaternion']['X']
             qy = tag['pose']['rotation']['quaternion']['Y']
             qz = tag['pose']['rotation']['quaternion']['Z']
+
+            field_map.addTag(id, x, y, z, qw, qx, qy, qz)
 
 
             # Create a transform that converts from the tag coordinate system to the field coordinate system
@@ -66,9 +140,13 @@ def load_apriltags(game_id):
 
             tag_transform = np.dot(field_transform, correction)
 
+            #print(f"Initial tag transform for Tag_{id}: {tag_transform}")
+
             tag['tag_transform'] = tag_transform
 
-        return data            
+        field_map.printTagTransform()
+
+        return field_map            
 
     return None
 
@@ -79,10 +157,13 @@ class LiveMapDisplay:
         self.image_path = os.path.join(os.path.dirname(__file__), f"{game_id}.jpg")
         self.img = None
 
-        self.map_data = load_apriltags(game_id)
+        self.map_data = get_map(game_id)
+        self.map_data: FieldMap # type hint
 
-        self.field_width = None
-        self.field_length = None
+        field_width, field_length = self.map_data.getFieldSize()
+
+        self.field_width = field_width
+        self.field_length = field_length
         self.image_width = None
         self.image_height = None
 
@@ -97,8 +178,6 @@ class LiveMapDisplay:
         self.img = cv2.imread(self.image_path)
         assert self.img is not None, f"Could not load image {self.game_id}.jpg"
 
-        self.field_width = self.map_data['field']['width']
-        self.field_length = self.map_data['field']['length']
         self.image_width = self.img.shape[1]
         self.image_height = self.img.shape[0]
 
@@ -175,11 +254,9 @@ class LiveMapDisplay:
 
         img = self.img.copy()
     
-        for tag in self.map_data['tags']:
-            id = tag['ID']
-            x = tag['pose']['translation']['x']
-            y = tag['pose']['translation']['y']
-            z = tag['pose']['translation']['z']
+        for tag_id in self.map_data.getAllTags():
+
+            x,y,z = self.map_data.getTagLocation(tag_id)
 
                                            
             # Compute the pixel coordinates of the tag
@@ -190,12 +267,12 @@ class LiveMapDisplay:
             distance = None
 
             camera_pose = None
-            if id in self._detections:
+            if tag_id in self._detections:
                 color = (0, 255, 0)
-                distance = self._detections[id]['distance']
+                distance = self._detections[tag_id]['distance']
                 # convert the distace to a radius in pixels
                 distance = distance / self.field_length * self.image_width
-                camera_pose = self._detections[id]['camera_pose']
+                camera_pose = self._detections[tag_id]['camera_pose']
 
             if False:
                 # Draw the tag
@@ -212,7 +289,7 @@ class LiveMapDisplay:
 
             # Find the point one meter in front of the tag so we can draw a line to it
             # This is the x axis of the tag coordinate system
-            tag_transform = tag['tag_transform']
+            tag_transform = self.map_data.getTagTransform(tag_id)
 
             tag_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
             tag_location = np.matmul(tag_transform, tag_location)
@@ -221,6 +298,9 @@ class LiveMapDisplay:
             tag_direction = np.matmul(tag_transform, tag_direction)
 
             if camera_pose is not None:
+                print(f"Tag {tag_id} Camera Pose: {camera_pose}")
+                print(f"Tag Transform Map: {tag_transform} Tag: {tag_id}")
+
                 camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
                 camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
 
@@ -231,6 +311,7 @@ class LiveMapDisplay:
                 camera_direction = np.matmul(tag_transform, camera_direction)
                 camera_trans = camera_location[:3] / camera_location[3]
                 camera_dir = camera_direction[:3] / camera_direction[3]
+                print("Map Location: ", camera_trans.flatten())
 
                 #yellow
                 camera_color = (0, 255, 255)
@@ -255,7 +336,7 @@ class LiveMapDisplay:
 
 
 
-            text_size = cv2.getTextSize(str(id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
+            text_size = cv2.getTextSize(str(tag_id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
             text_x = int(pixel_x - text_size[0] / 2)
             text_y = int(pixel_y - text_size[1] / 2)
             if text_y < self.image_height / 2:
@@ -263,7 +344,7 @@ class LiveMapDisplay:
             else:
                 text_y -= text_size[1] - 10
 
-            cv2.putText(img, str(id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+            cv2.putText(img, str(tag_id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
 
             #if global_camera_pose is not None:
             #    # Draw a line from the tag to the camera

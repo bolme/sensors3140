@@ -1,7 +1,7 @@
 import cv2
 import apriltag
 import numpy as np
-from sensors3140.apriltag.maps.map import load_apriltags
+from sensors3140.apriltag.maps.map import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 
@@ -40,7 +40,9 @@ class AprilTagDetector:
 
 
     def load_map(self, game_id):
-        self.map_data = load_apriltags(game_id)
+        self.map_data = get_map(game_id)
+        self.map_data: FieldMap
+
 
     def __call__(self, frame_data):
         start_time = time.time()
@@ -121,10 +123,10 @@ class AprilTagDetector:
             camera_translation = camera_translation[:3]/camera_translation[3]
 
             #print(f"Tag {r.tag_id} camera translation: {camera_translation}")
-            if r.tag_id >= len(self.map_data['tags']):
+            if r.tag_id in self.map_data.getAllTags():
                 continue
 
-            tag_transform = self.map_data['tags'][r.tag_id]['tag_transform']
+            tag_transform = self.map_data.getTagTransform(r.tag_id)
 
             camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
             camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
@@ -150,11 +152,29 @@ class AprilTagDetector:
             detections[-1]['camera_pose'] = camera_pose
 
             if best_camera_pose is None or score > best_camera_score:
-                best_camera_pose = camera_pose
-                best_camera_direction = camera_dir
                 best_camera_tag_id = r.tag_id
+
+                best_camera_pose = camera_pose
+                print(f"Tag Transform: {tag_transform}, tag_id: {r.tag_id}")
+
+                
+                # start
+                camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
+                camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
+
+                camera_location = np.matmul(best_camera_pose, camera_location)
+                camera_direction = np.matmul(best_camera_pose, camera_direction)
+                camera_location = np.matmul(tag_transform, camera_location)
+                camera_direction = np.matmul(tag_transform, camera_direction)
+                camera_trans = camera_location[:3] / camera_location[3]
+                camera_dir = camera_direction[:3] / camera_direction[3]
+                # end
+
+                best_camera_direction = camera_dir
                 best_camera_translation = camera_trans
                 best_camera_score = score
+                print(f"Best camera pose: {best_camera_pose} Tag: {r.tag_id}")
+                print(f"Best camera translation: {best_camera_translation.flatten()}")
 
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", dist)

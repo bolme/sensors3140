@@ -207,6 +207,8 @@ class NTMapDisplay:
 
         self.set_camera_pose(best_camera_translation, best_camera_direction, best_camera_pose_tag)
 
+        print("Translation:",best_camera_translation)
+
 
 
         
@@ -245,10 +247,10 @@ class NTMapDisplay:
 
                 if self.best_camera_pose_tag == id:
                     # draw the camera translation and direction
-                    print("Drawing Camera")
+                    #print("Drawing Camera")
                     print("   ",self.best_camera_translation)
                     cam_x, cam_y = self.real_world_to_pixel((self.best_camera_translation[0], self.best_camera_translation[1]))
-                    print("   x,y",cam_x,cam_y)
+                    #print("   x,y",cam_x,cam_y)
                     cam_dir_x, cam_dir_y = self.real_world_to_pixel((self.best_camera_direction[0], self.best_camera_direction[1]))
                     cv2.circle(img, (int(cam_x),int(cam_y)), 10, (0, 255, 255), -1)
                     cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), (0, 255, 255), 3) 
@@ -349,7 +351,7 @@ if __name__ == "__main__":
     display.load()
     print('Loaded...')
     while True:
-        print("Map Loop.")
+        #print("Map Loop.")
 
         display.update()
         display.display()
