@@ -211,13 +211,6 @@ class LiveMapDisplay:
 
         
     def display(self):
-        # Create a 3x3 transform that converts real world coordinates to pixel coordinates
-        #rotation_matrix = np.eye(3)
-        #scale_matrix = np.array([[self.image_width / self.field_width, 0, 0], [0, self.image_height / self.field_length, 0], [0, 0, 1]])
-        #translation_matrix = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-        #transform_matrix = np.dot(scale_matrix, rotation_matrix)
-        #transform_matrix = np.dot(transform_matrix,translation_matrix)
-
         img = self.img.copy()
     
         for tag_id in self.map_data.getAllTags():
@@ -240,18 +233,6 @@ class LiveMapDisplay:
                 distance = distance / self.field_length * self.image_width
                 camera_pose = self._detections[tag_id]['camera_pose']
 
-            if False:
-                # Draw the tag
-                cv2.circle(img, (int(pixel_x),int(pixel_y)), 10, color, -1)
-
-                # Draw the tag real world coordinates
-                text = f"({x:.2f}, {y:.2f}" #, {z:.2f})"
-                text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 2)[0]
-                text_x = int(pixel_x - text_size[0] / 2)
-                text_y = int(pixel_y + text_size[1] + 10)
-                cv2.putText(img, text, (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2, cv2.LINE_AA)
-
-
 
             # Find the point one meter in front of the tag so we can draw a line to it
             # This is the x axis of the tag coordinate system
@@ -264,9 +245,6 @@ class LiveMapDisplay:
             tag_direction = np.matmul(tag_transform, tag_direction)
 
             if camera_pose is not None:
-                print(f"Tag {tag_id} Camera Pose: {camera_pose}")
-                print(f"Tag Transform Map: {tag_transform} Tag: {tag_id}")
-
                 camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
                 camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
 
@@ -277,7 +255,6 @@ class LiveMapDisplay:
                 camera_direction = np.matmul(tag_transform, camera_direction)
                 camera_trans = camera_location[:3] / camera_location[3]
                 camera_dir = camera_direction[:3] / camera_direction[3]
-                print("Map Location: ", camera_trans.flatten())
 
                 #yellow
                 camera_color = (0, 255, 255)
@@ -311,22 +288,6 @@ class LiveMapDisplay:
                 text_y -= text_size[1] - 10
 
             cv2.putText(img, str(tag_id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
-
-            #if global_camera_pose is not None:
-            #    # Draw a line from the tag to the camera
-            #    blue = (77, 255, 255)
-            #
-            #    print(f"Global Tag Location: {tag_point.flatten()}")
-
-            #    camera_x, camera_y = self.real_world_to_pixel((global_camera_pose[0,3], global_camera_pose[1,3]))
-            #    cv2.line(img, (int(pixel_x), int(pixel_y)), (int(camera_x), int(camera_y)), blue, 1)
-            #    cv2.circle(img, (int(camera_x),int(camera_y)), 10, blue, -1)
-
-
-        # plot a circle at the robot's location
-        #robot_x, robot_y = self.real_world_to_pixel((self.robot_x, self.robot_y))
-        #cv2.circle(img, (robot_x, robot_y), 10, (0, 255, 0), 10)
-
 
         window_name = 'AprilTag Overlay'
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
