@@ -46,29 +46,15 @@ class AprilTagDetector:
 
     def __call__(self, frame_data):
         start_time = time.time()
-        frame = frame_data.frame
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        gray = cv2.cvtColor(frame_data.frame, cv2.COLOR_BGR2GRAY)
         results = self.detector.detect(gray)
 
-        # Results format:
-        # [
-        #   DetectionBase(
-        #       tag_family='tag36h11', 
-        #       tag_id=2, 
-        #       hamming=0, 
-        #       goodness=0.0, 
-        #       decision_margin=98.58241271972656, 
-        #       homography=array([[ -1.41302664e-01,   1.08428082e+00,   1.67512900e+01], [ -8.75899366e-01,   1.50245469e-01,   1.70532040e+00], [ -4.89183533e-04,   2.12210247e-03,   6.02052342e-02]]), 
-        #       center=array([ 278.23643912,   28.32511859]), 
-        #       corners=array([[ 269.8939209 ,   41.50381088], [ 269.57183838,   11.79248142], [ 286.1383667 ,   15.84242821], [ 286.18066406,   43.48323059]])), ...
-        
         detections = []
         tag_ids = []
         distances = []
         bearings = []
         azimuths = []
-        hamming = []
-        goodness = []
         decision_margin = []
 
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
@@ -77,18 +63,16 @@ class AprilTagDetector:
         best_camera_translation = None
         best_camera_direction = None
         best_camera_tag_id = None
+        best_camera_score = None
+
         for r in results:
-            # camera param format: [fx, fy, cx, cy]
-            
             pose = self.detector.detection_pose(r, self.camera_params, self.tag_size)
             trans = pose[0][0:3, 3]
             dist = np.sqrt((trans**2).sum())
-            print(f"Tag {r.tag_id} location: {trans.flatten()} distance: {dist}")
             bearing = np.arctan2(trans[0], trans[2]) * 180.0 / np.pi
             azimuth = np.arctan2(-trans[1], trans[2]) * 180.0 / np.pi
-            goodness.append(r.goodness)
-            hamming.append(r.hamming)
             decision_margin.append(r.decision_margin)
+
             detections.append({
                 'id': r.tag_id,
                 'center': r.center,
@@ -103,78 +87,46 @@ class AprilTagDetector:
                 'camera_params': self.camera_params,
             })
 
-            # This transforms points in the tags coordinate system to the field coordinate system
-            #april_tag_pose = self.map_data['tags'][r.tag_id]['tag_transform']
+            tag_to_camera_transform = pose[0]
+            detections[-1]['tag_pose'] = tag_to_camera_transform
 
-            #print(f"Tag {r.tag_id} pose: {april_tag_pose}")
+            camera_to_tag_transform = np.linalg.inv(tag_to_camera_transform)
+            detections[-1]['camera_pose'] = camera_to_tag_transform
 
-            # this is the pose of the tag in the camera coordinate system
-            tag_pose = pose[0]
-            #print(f"Tag {r.tag_id} camera pose: {tag_pose}")
+            camera_origin_in_tag_space = np.dot(camera_to_tag_transform, np.array([[0], [0], [0], [1]]))
+            camera_origin_in_tag_space = camera_origin_in_tag_space[:3] / camera_origin_in_tag_space[3]
+            detections[-1]['camera_translation'] = camera_origin_in_tag_space
 
-            detections[-1]['tag_pose'] = tag_pose
-
-            # find the camera pose in the tag coordinate system
-            camera_pose = np.linalg.inv(tag_pose)
-
-            detections[-1]['camera_pose'] = camera_pose
-
-            camera_translation = np.dot(camera_pose, np.array([[0], [0], [0], [1]]))
-            camera_translation = camera_translation[:3]/camera_translation[3]
-
-            #print(f"Tag {r.tag_id} camera translation: {camera_translation}")
-            if r.tag_id in self.map_data.getAllTags():
+            if r.tag_id not in self.map_data.getAllTags():
                 continue
 
-            tag_transform = self.map_data.getTagTransform(r.tag_id)
+            tag_to_field_transform = self.map_data.getTagTransform(r.tag_id)
 
-            camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
-            camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
+            camera_origin_homogeneous = np.array([[0.0], [0.0], [0.0], [1.0]])
+            camera_forward_homogeneous = np.array([[0.0], [0.0], [1.0], [1.0]])
 
-            camera_location = np.matmul(camera_pose, camera_location)
-            camera_direction = np.matmul(camera_pose, camera_direction)
+            camera_origin_homogeneous = np.matmul(camera_to_tag_transform, camera_origin_homogeneous)
+            camera_forward_homogeneous = np.matmul(camera_to_tag_transform, camera_forward_homogeneous)
 
-            camera_location = np.matmul(tag_transform, camera_location)
-            camera_direction = np.matmul(tag_transform, camera_direction)
-            camera_trans = camera_location[:3] / camera_location[3]
-            camera_dir = camera_direction[:3] / camera_direction[3]
+            camera_origin_homogeneous = np.matmul(tag_to_field_transform, camera_origin_homogeneous)
+            camera_forward_homogeneous = np.matmul(tag_to_field_transform, camera_forward_homogeneous)
 
-            # Score should be related to how close the camera is to the tag and how close the camera is to the axis of the tag.
-            # The closer the camera is to the tag, the higher the score.
-            # The score should be the highest when the camera is 45 degrees to the axis of the tag.
-            camera_location_angle = np.arctan2(camera_pose[1,3], camera_pose[0,3])
+            camera_position_field = camera_origin_homogeneous[:3] / camera_origin_homogeneous[3]
+            camera_direction_field = camera_forward_homogeneous[:3] / camera_forward_homogeneous[3]
+
+            camera_location_angle = np.arctan2(camera_to_tag_transform[1, 3], camera_to_tag_transform[0, 3])
             score = camera_location_angle
 
-            detections[-1]['camera_location'] = camera_location
-            detections[-1]['camera_direction'] = camera_direction
-            detections[-1]['camera_translation'] = camera_trans
+            detections[-1]['camera_location'] = camera_origin_homogeneous
+            detections[-1]['camera_direction'] = camera_forward_homogeneous
             detections[-1]['camera_location_score'] = score
-            detections[-1]['camera_pose'] = camera_pose
 
             if best_camera_pose is None or score > best_camera_score:
                 best_camera_tag_id = r.tag_id
-
-                best_camera_pose = camera_pose
-                print(f"Tag Transform: {tag_transform}, tag_id: {r.tag_id}")
-
-                
-                # start
-                camera_location = np.array([[0.0], [0.0], [0.0], [1.0]]) # in homogenous coordinates
-                camera_direction = np.array([[0.0], [0.0], [1.0], [1.0]]) # in homogenous coordinates
-
-                camera_location = np.matmul(best_camera_pose, camera_location)
-                camera_direction = np.matmul(best_camera_pose, camera_direction)
-                camera_location = np.matmul(tag_transform, camera_location)
-                camera_direction = np.matmul(tag_transform, camera_direction)
-                camera_trans = camera_location[:3] / camera_location[3]
-                camera_dir = camera_direction[:3] / camera_direction[3]
-                # end
-
-                best_camera_direction = camera_dir
-                best_camera_translation = camera_trans
+                best_camera_pose = camera_to_tag_transform
+                best_camera_translation = camera_position_field
+                best_camera_direction = camera_direction_field
                 best_camera_score = score
-                print(f"Best camera pose: {best_camera_pose} Tag: {r.tag_id}")
-                print(f"Best camera translation: {best_camera_translation.flatten()}")
 
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", dist)
@@ -194,37 +146,14 @@ class AprilTagDetector:
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/distances", distances)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/bearings", bearings)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/azimuths", azimuths)
-        self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/goodness", goodness)
-        self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/hamming", hamming)
         self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/decision_margin", decision_margin)
-        # compute average hamming distance
-        if len(hamming) > 0:
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_hamming", sum(hamming) / len(hamming))
-        else:
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_hamming", 0)
 
-        # compute average goodness
-        if len(goodness) > 0:
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_goodness", sum(goodness) / len(goodness))
-        else:
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_goodness", 0)
-
-        # compute average decision margin
         if len(decision_margin) > 0:
-            avereage_decision_margin = sum(decision_margin) / len(decision_margin)
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", avereage_decision_margin)
-            decision_max = 80.0
-            decision_min = 65.0
-            decision_quality = (sum(decision_margin) / len(decision_margin) - decision_min) / (decision_max - decision_min)
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/decision_quality_current", decision_quality)
-            if self.decision_quality_average is None:
-                self.decision_quality_average = decision_quality
-            else:
-                self.decision_quality_average = (self.decision_quality_average * 0.98) + (decision_quality * 0.02)
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/decision_quality_average", self.decision_quality_average)
+            average_decision_margin = sum(decision_margin) / len(decision_margin)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", average_decision_margin)
         else:
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", 0)
-                                 
+
         if best_camera_pose is not None:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose", best_camera_pose.flatten())
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_translation", best_camera_translation.flatten())
@@ -232,9 +161,7 @@ class AprilTagDetector:
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose_tag", best_camera_tag_id)
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/best_camera_pose_score", best_camera_score)
 
-
         end_time = time.time()
-
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/processing_time", end_time - start_time)
 
         self.detections = detections

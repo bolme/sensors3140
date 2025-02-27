@@ -62,7 +62,6 @@ class FieldMap(object):
         self.tag_data[id]['location'] = location
         self.tag_data[id]['quaternion'] = quaternion
 
-        print(f"Initial tag transform for Tag_{id}: {tag_transform}")
 
     def getTagLocation(self, id):
         return self.tag_data[id]['location']
@@ -112,8 +111,6 @@ def _load_apriltags(game_id):
             qz = tag['pose']['rotation']['quaternion']['Z']
 
             field_map.addTag(id, x, y, z, qw, qx, qy, qz)
-
-        field_map.printTagTransform()
 
         return field_map            
 
