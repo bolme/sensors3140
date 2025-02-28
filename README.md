@@ -116,6 +116,36 @@ sudo cp config/apriltag.service /etc/systemd/system/apriltag.service
 sudo chmod 664 /etc/systemd/system/apriltag.service
 ```
 
+# Running the AprilTag Field Map Visualizer
+
+To run the AprilTag field map visualization tool that displays real-time tag detections and robot position:
+
+```bash
+python -m sensors3140.apriltag.maps.nt_map --server [NT_SERVER_IP] --game [GAME_ID]
+```
+
+## Parameters:
+
+- `--server`: NetworkTables server IP address (default: 127.0.0.1)
+- `--game`: Game field to load (default: 2025-reefscape)
+
+## Example:
+
+```bash
+# Connect to local NetworkTables server
+python -m sensors3140.apriltag.maps.nt_map
+
+# Connect to robot at 10.31.40.2
+python -m sensors3140.apriltag.maps.nt_map --server 10.31.40.2
+```
+
+The visualizer shows:
+- Field map with AprilTag locations
+- Currently detected tags (highlighted in green)
+- Distance circles around detected tags
+- Camera position and direction when tags are tracked
+- Press 'q' to quit
+
 ### Editing the unitfile
 The unit file sets the paths and configuration to start up the apriltag coprocessor.  It is a good idea to check the username, paths, etc to make sure the configuration is correct.
 
