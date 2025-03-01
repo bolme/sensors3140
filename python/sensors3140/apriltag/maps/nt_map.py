@@ -189,21 +189,21 @@ class NTMapDisplay:
         self.best_camera_pose_tag = best_camera_pose_tag
     
 
-    def update(self):
+    def update(self,camera_id=0):
         '''Update from Network Tables'''
         print("Connected to Network Tables:",self.tables.is_connected())
         # Get the timestamp
         print("Timestamp:",self.tables.getDouble("sensors3140/timestamp"))
 
-        tag_ids = self.tables.getIntegerArray("sensors3140/apriltags/camera1/ids",[])
-        distances = self.tables.getDoubleArray("sensors3140/apriltags/camera1/distances",[])
-        bearings = self.tables.getDoubleArray("sensors3140/apriltags/camera1/bearings",[])
+        tag_ids = self.tables.getIntegerArray(f"sensors3140/apriltags/camera{camera_id}/ids",[])
+        distances = self.tables.getDoubleArray(f"sensors3140/apriltags/camera{camera_id}/distances",[])
+        bearings = self.tables.getDoubleArray(f"sensors3140/apriltags/camera{camera_id}/bearings",[])
         self.set_current_detections(tag_ids, distances, bearings)
 
         # update camera location data from network tables - best_camera_translation and best_camera_direction
-        best_camera_translation = self.tables.getDoubleArray("sensors3140/apriltags/camera1/camera_position")
-        best_camera_direction = self.tables.getDoubleArray("sensors3140/apriltags/camera1/camera_direction")
-        best_camera_pose_tag = self.tables.getInteger("sensors3140/apriltags/camera1/camera_position_tag",-1)
+        best_camera_translation = self.tables.getDoubleArray(f"sensors3140/apriltags/camera{camera_id}/camera_position")
+        best_camera_direction = self.tables.getDoubleArray(f"sensors3140/apriltags/camera{camera_id}/camera_direction")
+        best_camera_pose_tag = self.tables.getInteger(f"sensors3140/apriltags/camera{camera_id}/camera_position_tag",-1)
 
         self.set_camera_pose(best_camera_translation, best_camera_direction, best_camera_pose_tag)
 
@@ -297,6 +297,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='AprilTag Field Map Display')
     parser.add_argument('--server', default='127.0.0.1', help='NetworkTables server address')
     parser.add_argument('--game', default='2025-reefscape', help='Game ID for field map')
+    parser.add_argument('--camera', default=0, help='Game ID for field map')
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -304,7 +305,7 @@ if __name__ == "__main__":
     args = parse_arguments()
     
     # Initialize network tables with the server address
-    nt.NetworkTablesManager(args.server)
+    tables = nt.NetworkTablesManager(args.server)
     
     # Create the display with the specified game ID
     display = NTMapDisplay(args.game)
@@ -313,9 +314,15 @@ if __name__ == "__main__":
     print(f'Connected to NetworkTables server: {args.server}')
     
     while True:
-        display.update()
+        display.update(int(args.camera))
         display.display()
         key = cv2.waitKey(1)
+
+        # get the detected apriltags
+        print(f"sensors3140/apriltags/camera{args.camera}/ids")
+        detected_tags = tables.getIntegerArray(f"sensors3140/apriltags/camera{args.camera}/ids")
+        print("Detected Tags:",detected_tags)
+
         # Check for q to quit
         if key == ord('q'):
             break
