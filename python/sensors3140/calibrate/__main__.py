@@ -171,6 +171,23 @@ class CameraCapture:
         if exc_type is not None:
             print(f"Exception: {exc_value}")
 
+def save_images(saved_images, mtx, dist, camera_id):
+    """Save original and undistorted images to a directory"""
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    directory = os.path.expanduser(f"~/sensors3140/camera_{camera_id}_images_{timestamp}")
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    for idx, image in enumerate(saved_images):
+        original_path = os.path.join(directory, f"frame_{idx}_original.png")
+        undistorted_path = os.path.join(directory, f"frame_{idx}_undistorted.png")
+
+        cv2.imwrite(original_path, image)
+        undistorted_image = cv2.undistort(image, mtx, dist)
+        cv2.imwrite(undistorted_path, undistorted_image)
+
+    print(f"Saved {len(saved_images)} original and undistorted images to {directory}")
+
 def main():
     options, args = parseOptions()
 
@@ -183,6 +200,8 @@ def main():
 
     img_points, obj_points, size = [], [], (0, 0)
     frame_count, last_print_time, error_vals, prev_mtx = 0, time.time(), [], None
+    saved_images = []
+    last_save_time = time.time()
 
     print("Starting calibration. Press Ctrl+C to finish early or any key in display window to stop.")
     try:
@@ -197,6 +216,11 @@ def main():
                 if current_time - last_print_time >= 0.5:
                     print(f"Frame {frame_count}: Detected {len(results)} tags, Collected {len(img_points)} calibration samples")
                     last_print_time = current_time
+
+                if current_time - last_save_time >= 3:
+                    saved_images.append(image.copy())
+                    print(f"Saved image at frame {frame_count}. Total saved images: {len(saved_images)}")
+                    last_save_time = current_time
 
                 if frame_count % 15 == 0 and len(results) > 8:
                     img_points, obj_points = collect_calibration_points(results, obj_p_map, img_points, obj_points)
@@ -246,6 +270,7 @@ def main():
             print("\nCalibration Results:")
             print(json.dumps(result, indent=4))
             save_calibration_result(result, options, is_file)
+            save_images(saved_images, mtx, dist, options.camera_id)
         else:
             print("Not enough calibration data collected. Try again with more frames.")
         if options.display:
