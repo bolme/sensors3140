@@ -1,13 +1,63 @@
 import cv2
 import apriltag
 import numpy as np
+np.set_printoptions(precision=3, suppress=True)
 from sensors3140.apriltag.maps.map import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 
+import ctypes
+
+
+#dst = cv2.undistortPoints(src, cameraMatrix, distCoeffs)
+
+def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_size=.1651, z_sign=1):
+
+    fx, fy, cx, cy = [ ctypes.c_double(c) for c in camera_params ]
+    
+    H = detector.libc.matd_create(3, 3)
+    arr = apriltag._matd_get_array(H)
+    arr[:] = detection.homography
+    corners = detection.corners.flatten().astype(np.float64).reshape(-1, 1, 2)
+    corners_orig = corners.copy()
+
+    camera_matrix = np.eye(3, 3, dtype=np.float64)
+    camera_matrix[0, 0] = camera_params[0]
+    camera_matrix[1, 1] = camera_params[1]
+    camera_matrix[0, 2] = camera_params[2]
+    camera_matrix[1, 2] = camera_params[3]
+
+    corners = cv2.undistortPoints(corners, camera_matrix, dist_coeffs,P=camera_matrix).flatten()
+
+    print('Corners')
+    print(corners.flatten())
+    print(corners_orig.flatten())
+
+    dptr = ctypes.POINTER(ctypes.c_double)
+
+    corners = corners.ctypes.data_as(dptr)
+
+
+    init_error = ctypes.c_double(0)
+    final_error = ctypes.c_double(0)
+    
+    Mptr = detector.libc.pose_from_homography(H, fx, fy, cx, cy,
+                                            ctypes.c_double(tag_size),
+                                            ctypes.c_double(z_sign),
+                                            corners,
+                                            dptr(init_error),
+                                            dptr(final_error))
+
+    M = apriltag._matd_get_array(Mptr).copy()
+    detector.libc.matd_destroy(H)
+    detector.libc.matd_destroy(Mptr)
+
+    return M, init_error.value, final_error.value
+
+
 
 class AprilTagDetector:
-    def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, tag_size=.20638, game_id="2025-reefscape"):
+    def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, dist_coeff=None, tag_size=.1651, game_id="2025-reefscape"):
         self.detector_options = apriltag.DetectorOptions(families=tag_family)
 
         # options = apriltag.Detectoroptions(families='tag36h11',
@@ -23,11 +73,11 @@ class AprilTagDetector:
 
         self.detector = apriltag.Detector(self.detector_options)
         self.camera_params = camera_params
+        self.dist_coeff = dist_coeff
         self.tag_size = tag_size
         self.camera_id = camera_id
         self.detections = []
         self.decision_quality_average = None
-
         self.load_map(game_id)
 
         self.detected_tags = set()
@@ -108,12 +158,13 @@ class AprilTagDetector:
         # Process each detected tag
         for r in results:
             # Get the tag pose in camera frame
-            tag_pose_matrices = self.detector.detection_pose(r, self.camera_params, self.tag_size)
+            tag_pose_matrices = local_detection_pose(self.detector, r, self.camera_params,self.dist_coeff, self.tag_size)
             tag_translation_camera_frame = tag_pose_matrices[0][0:3, 3]
             tag_distance = np.sqrt((tag_translation_camera_frame**2).sum())
             tag_bearing = np.arctan2(tag_translation_camera_frame[0], tag_translation_camera_frame[2]) * 180.0 / np.pi
             tag_azimuth = np.arctan2(-tag_translation_camera_frame[1], tag_translation_camera_frame[2]) * 180.0 / np.pi
             
+            print(f"Tag {r.tag_id}: distance={tag_distance:.2f}m")
             # Add the detection to the list
             detections.append({
                 'id': r.tag_id,
@@ -241,7 +292,7 @@ class AprilTagDetector:
 
         # store the detections
         self.detections = detections
-        
+
         return detections
     
     def get_detected_tags(self):

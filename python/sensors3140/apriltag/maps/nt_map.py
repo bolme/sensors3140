@@ -216,6 +216,10 @@ class NTMapDisplay:
         """Display the field map with AprilTags and detected positions."""
         # Create a copy of the image to draw on
         display_img = self.img.copy()
+
+        # Draw a circle at the origin
+        origin_x, origin_y = self.real_world_to_pixel((0, 0))
+        cv2.circle(display_img, (origin_x, origin_y), 20, (0, 0, 255), -1)
         
         # Draw each tag on the field
         for tag in self.map_data['tags']:

@@ -8,7 +8,7 @@ from sensors3140.apriltag.detector import AprilTagDetector
 from sensors3140.camera.streaming_task import StreamingTask
 import numpy as np
 import psutil
-
+import regex as re
 import sensors3140.tables.network_tables as nt
 
 import sensors3140.apriltag.maps.map as map
@@ -35,8 +35,9 @@ def display_apriltag_boxes(img, detections):
         cv2.circle(img, tuple(center.astype(int)), 5, (0, 255, 0), -1)
 
         # Draw the ID and distance
-        cv2.putText(img, f"ID: {detection['id']}", tuple(center.astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        cv2.putText(img, f"Dist: {detection['distance']:.2f}m", (center[0].astype(int), center[1].astype(int) + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(img, f"ID: {detection['id']}", tuple(center.astype(int)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+        meter_to_inch = 39.3701
+        cv2.putText(img, f"Dist: {detection['distance']:.2f} m or {meter_to_inch*detection['distance']:.1f} inches", (center[0].astype(int), center[1].astype(int) + 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
     return img
 
@@ -144,7 +145,9 @@ def main():
     # Scan the configuration directory for camera configurations
     cameras = []
     for file in files:
-        if file.startswith("camera_") and file.endswith(".json"):
+        # Use regular expression to match camera_<int>.json
+        match = re.match(r"camera_(\d+)\.json", file)
+        if match:
             print(file)
             data = {}
             with open(os.path.join(sensors3140.sensors3140_directory, file), "r") as f:
@@ -172,7 +175,7 @@ def main():
 
     time.sleep(3)
 
-    at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters) for camera in cameras]
+    at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters,dist_coeff=camera.dist_coeffs) for camera in cameras]
 
     # Create a streaming task for each camera
     streaming_tasks = [StreamingTask(f"Camera {camera.camera_id} Streaming Task") for camera in cameras]
