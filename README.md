@@ -8,6 +8,16 @@ Apriltag targets are going to be new for the 2023 First Robotics Competition acc
 
 # Installation
 
+Installation requires 4 parts.  
+
+Environment will be in : ~/vision
+
+Code will be in: ~/Programming/sensors3140
+
+Configuration files will be in: ~/sensors3140
+
+Start up scripts will be in: systemctl
+
 ## Dependencies
 A number of dependencies may be required. The following is suggested for Raspberry Pi and similar platforms. 
  * build tools like gcc, cmake
@@ -25,6 +35,7 @@ sudo apt update
 sudo apt install gcc cmake libopencv-dev python3-dev python3-opencv python3-numpy python3-scipy python3-sklearn python3-skimage python3-pandas python3-pip
 ```
 
+
 ## Install from github
 Install the code directly from github.  This should put the code in your python environment but will not allow modification.
 
@@ -35,6 +46,20 @@ python3 -m pip install git+https://github.com/FRC-Team-3140/sensors3140
 ```
 
 ## Install from source
+Install on a raspberry pi:
+
+```python
+python3 -m venv ~/vision
+source ~/vision/bin/activate
+
+mkdir Programming
+cd Programming
+git clone https://github.com/FRC-Team-3140/sensors3140.git
+cd sensors3140
+python -m pip install -e .
+```
+
+
 This is useful for development.  The pip command install a link to your local copy of the python code which allows the code to be modified and updated easily.
 
 ```
@@ -58,7 +83,7 @@ python -m sensors3140.calibrate.calibrate_camera -o camera.json
 It is a good idea to try calibrations for a variety of camera settings.  Running a camera at higher resolution may increase the detection distance may also slow down the frame rate and require more computation.  The tool has many configurable that can be shown with the `-h` option on the command line but not all configurations are supported for all cameras.  A higher resolution example is shown here:
 
 ```
-python3 -m sensors3140.calibrate.calibrate_camera --width=1280 --height=720 --fps=15 -d --rotate=0 -o camera.json
+python3 -m sensors3140.calibrate --width=1280 --height=720 --fps=15 -d --rotate=0 -o camera.json
 ```
 
 To calibrate the camera move the apriltag calibration target in front of the camera **slowly** and **angling** it in many directions to get a variety of calibration images.  If the device has a monitor, the `-d` option will display a window that may help with this process and show apriltag detections.  Tilting the target in depth is important to allow algorithms to better estimate 3D parameters of the camera and better estimate depth.  The target should also be moved to cover the full extent of the camera field of view.
@@ -146,11 +171,12 @@ The visualizer shows:
 - Camera position and direction when tags are tracked
 - Press 'q' to quit
 
+
 ### Editing the unitfile
-The unit file sets the paths and configuration to start up the apriltag coprocessor.  It is a good idea to check the username, paths, etc to make sure the configuration is correct.
+The unit file sets the paths and configuration to start up the sensors3140 coprocessor.  It is a good idea to check the username, paths, etc to make sure the configuration is correct.
 
 ```
-sudo nano /etc/systemd/system/apriltag.service
+sudo nano /etc/systemd/system/sensors3140.service
 ```
 
 ### Testing the service
@@ -162,18 +188,23 @@ sudo systemctl daemon-reload
 
 The system can be tested with the following commands:
 ```
-sudo systemctl start apriltag
-sudo systemctl stop apriltag
+sudo systemctl start sensors3140
+sudo systemctl stop sensors3140
 ```
 
 ### Enable at boot
 In order to start the service with the device boots run this command.
 ```
-sudo systemctl enable apriltag
+sudo systemctl enable sensors3140
 ```
+
+### Automatically Restart the Service
+
+https://ma.ttias.be/auto-restart-crashed-service-systemd/
+
 
 ### Checking the logs
 If there are issues you should be able to check the log with:
 ```
-journalctl -u apriltag
+journalctl -u sensors3140
 ```
