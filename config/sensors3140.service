@@ -1,10 +1,10 @@
 [Unit]
-Description=AprilTag
+Description=Computer vision by team 3140.
 
 [Service]
-ExecStart=/usr/bin/python3 -m sensors3140.apriltag --config=/home/pi/apriltag.json
-User=pi
-Group=pi
+ExecStart=/home/dev3140/py_env/bin/python3 -m sensors3140
+User=dev3140
+Group=dev3140
 
 [Install]
 WantedBy=multi-user.target
