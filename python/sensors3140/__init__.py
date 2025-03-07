@@ -18,7 +18,21 @@ os.makedirs(sensors3140_directory, exist_ok=True)
 
 # Set up logging to the sensor3140_directory
 log_file = os.path.join(sensors3140_directory, "sensors3140.log")
-logging.basicConfig(filename=log_file, level=logging.DEBUG)
+logging.basicConfig(filename=log_file, level=logging.INFO)
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+handler = logging.StreamHandler()
+handler.setLevel(logger.level)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# Add the handler to the logger
+logger.addHandler(handler)
+
 
 # Print the time and date to the log file
 logging.info("Starting sensors3140")
