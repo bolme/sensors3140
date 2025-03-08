@@ -214,3 +214,9 @@ If there are issues you should be able to check the log with:
 ```
 journalctl -u sensors3140
 ```
+
+Setup a git connection
+
+```sh
+git remote add steambot ssh://dev3140@raspberrypi.local/home/dev3140/git/sensors3140/
+```

@@ -1,10 +1,18 @@
 [Unit]
 Description=Computer vision by team 3140.
 
+StartLimitIntervalSec=1000
+StartLimitBurst=10
+
 [Service]
-ExecStart=/home/dev3140/py_env/bin/python3 -m sensors3140
+ExecStart=/home/dev3140/vision/bin/python3 -m sensors3140
 User=dev3140
 Group=dev3140
+StandardOutput=journal
+StandardError=journal
+JournalProcessType=auto
+Restart=on-failure
+RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
