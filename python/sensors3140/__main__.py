@@ -60,14 +60,10 @@ def display_apriltag_pose(img, detections):
         camera_matrix = np.array([[kx, 0, cx], [0, ky, cy], [0, 0, 1]])
         transform = np.eye(4)
         projection_matrix = np.dot(camera_matrix, transform[:3, :])
-        #print("Proj:",projection_matrix.shape)
-        #print(projection_matrix)
 
         transformed_center = np.dot(projection_matrix, tag_center)
-        #print("Center:",transformed_center)
 
         image_coords = transformed_center[0:2] / transformed_center[2]
-        #print("Image Coords:",image_coords)
 
         # Draw the tag_center as a yellow circle outline
         cv2.circle(img, tuple(image_coords[0:2].flatten().astype(int)), 30, (0, 255, 255), 2)
@@ -148,11 +144,9 @@ def main():
         # Use regular expression to match camera_<int>.json
         match = re.match(r"camera_(\d+)\.json", file)
         if match:
-            print(file)
             data = {}
             with open(os.path.join(sensors3140.sensors3140_directory, file), "r") as f:
                 data = json.load(f)
-            print(data)
 
             # Create a camera object from the configuration
             camera = sensors3140.Camera(frame_stas=False,**data)
@@ -178,7 +172,7 @@ def main():
     at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters,dist_coeff=camera.dist_coeffs) for camera in cameras]
 
     # Create a streaming task for each camera
-    streaming_tasks = [StreamingTask(f"Camera {camera.camera_id} Streaming Task") for camera in cameras]
+    streaming_tasks = [StreamingTask(camera.camera_id) for camera in cameras]
     # Start the streaming tasks
     for task in streaming_tasks:
         task.start()

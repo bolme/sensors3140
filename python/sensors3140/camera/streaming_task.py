@@ -12,8 +12,8 @@ CURRENT_PORT = 8081
 class StreamingTask(TaskBase):
     '''Low Latency Streaming Task'''
 
-    def __init__(self, name: str, priority: TaskPriority = TaskPriority.NORMAL, width: int = 320, height: int = 240, fps: int = 10):
-        super().__init__(name, priority)
+    def __init__(self, sensor_id: str, priority: TaskPriority = TaskPriority.NORMAL, width: int = 320, height: int = 240, fps: int = 10):
+        super().__init__(f"camera{sensor_id}", priority)
         self.width = width
         self.height = height
         self.fps = fps
@@ -30,25 +30,38 @@ class StreamingTask(TaskBase):
         self.mjpegServer.setSource(self.camera)
 
         self.table = NetworkTablesManager()
-        self.table.setString(f"sensors3140/streams/{name}/ip", sensors3140.get_ip_addresses()[0])
-        self.table.setString(f"sensors3140/streams/{name}/host", sensors3140.get_hostname())
-        self.table.setDouble(f"sensors3140/streams/{name}/port", port)
-        self.table.setString(f"sensors3140/streams/{name}/url", f"http://{sensors3140.get_ip_addresses()[0]}:{port}/stream.mjpg")
-        self.table.setDouble(f"sensors3140/streams/{name}/width", width)
-        self.table.setDouble(f"sensors3140/streams/{name}/height", height)
-        self.table.setDouble(f"sensors3140/streams/{name}/fps", fps)
-        self.table.setDouble(f"sensors3140/streams/{name}/timestamp", time.time())
-        self.table.setDouble(f"sensors3140/streams/{name}/frame_id", -1)
+        
+        
+        self.port = port
 
+        self.sensor_id = sensor_id
 
+        self.update_table()
+
+        self.tableupdatetime = time.time()
+
+    def update_table(self):
+        self.table.setString(f"sensors3140/streams/camera{self.sensor_id}/ip", sensors3140.get_ip_addresses()[0])
+        self.table.setString(f"sensors3140/streams/camera{self.sensor_id}/host", sensors3140.get_hostname())
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/port", self.port)
+        self.table.setString(f"sensors3140/streams/camera{self.sensor_id}/url", f"http://{sensors3140.get_ip_addresses()[0]}:{self.port}/stream.mjpg")
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/width", self.width)
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/height", self.height)
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/fps", self.fps)
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/timestamp", time.time())
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/frame_id", -1)
 
     def process(self, frame_data: Any) -> Optional[Any]:
         """Process incoming frames and stream only the most recent one"""
         frame_data: FrameData
         current_time = time.time()    
 
-        self.table.setDouble(f"sensors3140/streams/{self.name}/timestamp", frame_data.timestamp)
-        self.table.setDouble(f"sensors3140/streams/{self.name}/frame_id", frame_data.frame_id)
+        if current_time - self.tableupdatetime >= 10:
+            self.update_table()
+            self.tableupdatetime = current_time
+
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/timestamp", frame_data.timestamp)
+        self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/frame_id", frame_data.frame_id)
 
 
         if frame_data is None:
@@ -73,11 +86,11 @@ class StreamingTask(TaskBase):
 
         try:
             self.camera.putFrame(frame)
-            self.table.setDouble(f"sensors3140/streams/{self.name}/latency", current_time - frame_data.timestamp)
+            self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", current_time - frame_data.timestamp)
             return True
         except Exception as e:
             self.logger.error(f"Error streaming frame: {e}")
-            self.table.setDouble(f"sensors3140/streams/{self.name}/latency", -1.0)
+            self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", -1.0)
             return False
 
 
@@ -87,6 +100,7 @@ class StreamingTask(TaskBase):
         super().stop()
         self.camera.close()
         self.mjpegServer.close()
+
 
 
 
