@@ -7,10 +7,15 @@ from sensors3140.task_base import TaskBase, TaskPriority
 from sensors3140.tables.network_tables import NetworkTablesManager
 import sensors3140
 
+# Track the currently assigned port to avoid port conflicts between multiple streams
 CURRENT_PORT = 8081
 
 class StreamingTask(TaskBase):
-    '''Low Latency Streaming Task'''
+    '''
+    Low Latency Streaming Task - Handles streaming camera frames via MJPEG server
+    This task efficiently streams frames by dropping old frames to maintain target FPS
+    and publishes stream information to NetworkTables for clients to discover
+    '''
 
     def __init__(self, sensor_id: str, priority: TaskPriority = TaskPriority.NORMAL, width: int = 320, height: int = 240, fps: int = 10):
         super().__init__(f"camera{sensor_id}", priority)
@@ -19,7 +24,7 @@ class StreamingTask(TaskBase):
         self.fps = fps
         self.prev_frame = None
 
-        # Initialize cscore components
+        # Initialize cscore components for MJPEG streaming
         self.camera = cs.CvSource("cvsource", cs.VideoMode.PixelFormat.kMJPEG, 
                                 width, height, fps)
         global CURRENT_PORT
@@ -31,16 +36,20 @@ class StreamingTask(TaskBase):
 
         self.table = NetworkTablesManager()
         
-        
         self.port = port
-
         self.sensor_id = sensor_id
 
+        # Initialize stream info in NetworkTables
         self.update_table()
 
+        # Track when we last updated the table
         self.tableupdatetime = time.time()
 
     def update_table(self):
+        """
+        Update NetworkTables with stream information for clients to discover
+        Publishes IP, hostname, port, URL, and stream parameters
+        """
         self.table.setString(f"sensors3140/streams/camera{self.sensor_id}/ip", sensors3140.get_ip_addresses()[0])
         self.table.setString(f"sensors3140/streams/camera{self.sensor_id}/host", sensors3140.get_hostname())
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/port", self.port)
@@ -52,26 +61,42 @@ class StreamingTask(TaskBase):
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/frame_id", -1)
 
     def process(self, frame_data: Any) -> Optional[Any]:
-        """Process incoming frames and stream only the most recent one"""
+        """
+        Process incoming frames and stream only the most recent one
+        
+        Optimizes streaming performance by:
+        1. Emptying the queue to get the most recent frame
+        2. Dropping frames to maintain target FPS
+        3. Resizing frames if needed
+        4. Publishing stream performance metrics to NetworkTables
+        
+        Args:
+            frame_data: FrameData object containing the camera frame and metadata
+            
+        Returns:
+            True if frame was streamed successfully, False on error, None if frame was dropped
+        """
         frame_data: FrameData
         current_time = time.time()    
 
+        # Update NetworkTables info periodically (every 10 seconds)
         if current_time - self.tableupdatetime >= 10:
             self.update_table()
             self.tableupdatetime = current_time
 
+        # Update the current frame timestamp and ID in NetworkTables
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/timestamp", frame_data.timestamp)
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/frame_id", frame_data.frame_id)
-
 
         if frame_data is None:
             return None
 
         # Empty the input queue to get the most recent frame
+        # This helps reduce latency by skipping older frames
         while not self.input_queue.empty():
             frame_data = self.input_queue.get()
 
-        # Drop frames to maintain target fps
+        # Rate limiting - drop frames to maintain target FPS
         if self.prev_frame is not None:
             time_diff = current_time - self.prev_frame
             if time_diff < 1.0 / self.fps:
@@ -79,13 +104,15 @@ class StreamingTask(TaskBase):
 
         self.prev_frame = frame_data.timestamp
 
-        # Resize the frame if needed
+        # Resize the frame if needed to match stream dimensions
         frame = frame_data.frame
         if frame.shape[1] != self.width or frame.shape[0] != self.height:
             frame = cv2.resize(frame, (self.width, self.height))
 
         try:
+            # Push the frame to the MJPEG stream
             self.camera.putFrame(frame)
+            # Record latency metrics
             self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", current_time - frame_data.timestamp)
             return True
         except Exception as e:
@@ -93,10 +120,11 @@ class StreamingTask(TaskBase):
             self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", -1.0)
             return False
 
-
-
     def stop(self):
-        """Override stop to cleanup cscore resources"""
+        """
+        Override stop to cleanup cscore resources
+        Properly closes the camera source and MJPEG server
+        """
         super().stop()
         self.camera.close()
         self.mjpegServer.close()
@@ -104,4 +132,3 @@ class StreamingTask(TaskBase):
 
 
 
-    

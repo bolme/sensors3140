@@ -1,19 +1,19 @@
-import sensors3140 as sensors3140
-import os
-import os.path
-import json
 import argparse
+import json
+import os
+import re
+import time
+from typing import List
+
 import cv2
-from sensors3140.apriltag.detector import AprilTagDetector
-from sensors3140.camera.streaming_task import StreamingTask
 import numpy as np
 import psutil
-import regex as re
+
+import sensors3140
 import sensors3140.tables.network_tables as nt
-
-import sensors3140.apriltag.maps.map as map
-
-import time
+from sensors3140.apriltag.detector import AprilTagDetector
+from sensors3140.maps import maps
+from sensors3140.camera.streaming_task import StreamingTask
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sensors3140")
@@ -241,7 +241,7 @@ def main():
         if args.map:
             # Create the map display if it doesn't exist
             if map_display is None:
-                map_display = map.LiveMapDisplay("2025-reefscape")
+                map_display = maps.LiveMapDisplay("2025-reefscape")
                 map_display.load()
                 map_display.set_robot_size(0.74, 0.74)
 
@@ -252,7 +252,7 @@ def main():
 
             map_display.set_detected_tags(detected_tags)
 
-            map_display: map.LiveMapDisplay
+            map_display: maps.LiveMapDisplay
 
             map_display.display()
 

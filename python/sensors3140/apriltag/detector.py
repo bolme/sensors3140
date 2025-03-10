@@ -2,7 +2,7 @@ import cv2
 import apriltag
 import numpy as np
 np.set_printoptions(precision=3, suppress=True)
-from sensors3140.apriltag.maps.map import get_map, FieldMap
+from sensors3140.maps.maps import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 
@@ -12,35 +12,57 @@ import ctypes
 #dst = cv2.undistortPoints(src, cameraMatrix, distCoeffs)
 
 def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_size=.1651, z_sign=1):
-
+    """
+    Calculate the pose of an AprilTag in the camera reference frame
+    
+    This function accounts for lens distortion by undistorting the corners
+    before estimating the pose.
+    
+    Args:
+        detector: AprilTag detector instance
+        detection: AprilTag detection object
+        camera_params: Camera intrinsic parameters [fx, fy, cx, cy]
+        dist_coeffs: Lens distortion coefficients
+        tag_size: Size of the tag in meters
+        z_sign: Sign of the Z axis (1 or -1)
+        
+    Returns:
+        tuple: (pose_matrix, initial_error, final_error)
+    """
     fx, fy, cx, cy = [ ctypes.c_double(c) for c in camera_params ]
     
+    # Create a homography matrix from the detection
     H = detector.libc.matd_create(3, 3)
     arr = apriltag._matd_get_array(H)
     arr[:] = detection.homography
+    
+    # Undistort corners for more accurate pose estimation
     corners = detection.corners.flatten().astype(np.float64).reshape(-1, 1, 2)
     corners_orig = corners.copy()
 
+    # Create camera matrix from intrinsic parameters
     camera_matrix = np.eye(3, 3, dtype=np.float64)
     camera_matrix[0, 0] = camera_params[0]
     camera_matrix[1, 1] = camera_params[1]
     camera_matrix[0, 2] = camera_params[2]
     camera_matrix[1, 2] = camera_params[3]
 
+    # Undistort corners
     corners = cv2.undistortPoints(corners, camera_matrix, dist_coeffs,P=camera_matrix).flatten()
 
     print('Corners')
     print(corners.flatten())
     print(corners_orig.flatten())
 
+    # Convert corners to C pointer for apriltag library
     dptr = ctypes.POINTER(ctypes.c_double)
-
     corners = corners.ctypes.data_as(dptr)
 
-
+    # Variables to receive error values
     init_error = ctypes.c_double(0)
     final_error = ctypes.c_double(0)
     
+    # Call into apriltag library to estimate pose
     Mptr = detector.libc.pose_from_homography(H, fx, fy, cx, cy,
                                             ctypes.c_double(tag_size),
                                             ctypes.c_double(z_sign),
@@ -48,6 +70,7 @@ def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_si
                                             dptr(init_error),
                                             dptr(final_error))
 
+    # Convert the result to numpy array and clean up
     M = apriltag._matd_get_array(Mptr).copy()
     detector.libc.matd_destroy(H)
     detector.libc.matd_destroy(Mptr)
@@ -57,10 +80,27 @@ def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_si
 
 
 class AprilTagDetector:
+    """
+    AprilTag detector that processes camera frames and publishes results to NetworkTables
+    
+    This class handles tag detection, pose estimation, and field positioning based on tags.
+    """
     def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, dist_coeff=None, tag_size=.1651, game_id="2025-reefscape"):
+        """
+        Initialize the AprilTag detector
+        
+        Args:
+            camera_id: ID of the camera
+            tag_family: AprilTag family to detect (default: tag36h11)
+            camera_params: Camera intrinsic parameters [fx, fy, cx, cy]
+            dist_coeff: Lens distortion coefficients
+            tag_size: Size of tags in meters
+            game_id: ID of the game field map to use
+        """
         self.detector_options = apriltag.DetectorOptions(families=tag_family)
 
-        # options = apriltag.Detectoroptions(families='tag36h11',
+        # Additional detector options can be set if needed:
+        # options = apriltag.DetectorOptions(families='tag36h11',
         #                          border=1,
         #                          nthreads=4,
         #                          quad_decimate=1.0,
@@ -78,10 +118,13 @@ class AprilTagDetector:
         self.camera_id = camera_id
         self.detections = []
         self.decision_quality_average = None
+        
+        # Load the field map with tag positions
         self.load_map(game_id)
 
         self.detected_tags = set()
 
+        # Initialize NetworkTables entries
         self.table = NetworkTablesManager()
         self.table.setString(f"sensors3140/apriltags/camera{camera_id}/family", tag_family)
         self.table.setInteger(f"sensors3140/apriltags/camera{camera_id}/target_id", -1)
@@ -90,6 +133,7 @@ class AprilTagDetector:
 
 
     def load_map(self, game_id):
+        """Load the field map containing AprilTag positions"""
         self.map_data = get_map(game_id)
         self.map_data: FieldMap
 
@@ -100,10 +144,12 @@ class AprilTagDetector:
         This method takes a frame, detects AprilTags in it, calculates various metrics like 
         distance, bearing, azimuth for each tag, and determines the camera's position in field 
         coordinates based on detected tags. Results are published to NetworkTables.
+        
         Parameters
         ----------
         frame_data : FrameData
             An object containing the frame image and metadata like timestamp and frame_id.
+        
         Returns
         -------
         list
@@ -123,6 +169,7 @@ class AprilTagDetector:
             - tag_pose: Transformation from camera to tag
             - camera_pose: Transformation from tag to camera
             - camera_translation: Camera position in tag space
+            
             For tags in the map, additional fields:
             - camera_location: Camera position in field coordinates (homogeneous)
             - camera_direction: Camera forward direction in field coordinates (homogeneous)
@@ -130,11 +177,11 @@ class AprilTagDetector:
         """
         start_time = time.time()
 
-        # Convert the frame to grayscale
+        # Convert the frame to grayscale for tag detection
         gray = cv2.cvtColor(frame_data.frame, cv2.COLOR_BGR2GRAY)
         results = self.detector.detect(gray)
 
-        # Clear the detected tags set
+        # Clear previous detections
         detections = []
         tag_ids = []
         distances = []
@@ -145,7 +192,7 @@ class AprilTagDetector:
         camera_directions = []
         camera_angles = []
 
-        # Get the target tag ID
+        # Get the target tag ID from NetworkTables
         target = self.table.getInteger(f"sensors3140/apriltags/camera{self.camera_id}/target_id")
 
         # Setup variables to store the best camera position
@@ -165,6 +212,7 @@ class AprilTagDetector:
             tag_azimuth = np.arctan2(-tag_translation_camera_frame[1], tag_translation_camera_frame[2]) * 180.0 / np.pi
             
             print(f"Tag {r.tag_id}: distance={tag_distance:.2f}m")
+            
             # Add the detection to the list
             detections.append({
                 'id': r.tag_id,
@@ -181,7 +229,7 @@ class AprilTagDetector:
                 'decision_margin': r.decision_margin,
             })
 
-            # Calculate the camera position in field coordinates
+            # Calculate transformations between camera and tag
             tag_to_camera_transform = tag_pose_matrices[0]
             detections[-1]['tag_pose'] = tag_to_camera_transform
 
@@ -194,36 +242,38 @@ class AprilTagDetector:
             camera_origin_in_tag_space = camera_origin_in_tag_space[:3] / camera_origin_in_tag_space[3]
             detections[-1]['camera_translation'] = camera_origin_in_tag_space
 
-            # Skip tags not in the map
+            # Skip tags not in the field map
             if r.tag_id not in self.map_data.getAllTags():
                 continue
 
-            # Get the tag-to-field transform
+            # Get the tag position in field coordinates
             tag_to_field_transform = self.map_data.getTagTransform(r.tag_id)
 
             # Calculate the camera position in field coordinates
             camera_origin_homogeneous = np.array([[0.0], [0.0], [0.0], [1.0]])
             camera_forward_homogeneous = np.array([[0.0], [0.0], [1.0], [1.0]])
 
+            # Transform camera origin and forward direction to tag coordinates
             camera_origin_homogeneous = np.matmul(camera_to_tag_transform, camera_origin_homogeneous)
             camera_forward_homogeneous = np.matmul(camera_to_tag_transform, camera_forward_homogeneous)
 
+            # Transform from tag to field coordinates
             camera_origin_homogeneous = np.matmul(tag_to_field_transform, camera_origin_homogeneous)
             camera_forward_homogeneous = np.matmul(tag_to_field_transform, camera_forward_homogeneous)
 
             camera_position_field = camera_origin_homogeneous[:3] / camera_origin_homogeneous[3]
             camera_direction_field = camera_forward_homogeneous[:3] / camera_forward_homogeneous[3]
 
-            # Calculate the angle of the camera in field coordinates
+            # Score this tag for camera positioning (favoring tags seen head-on)
             camera_location_angle = np.arctan2(camera_to_tag_transform[1, 3], camera_to_tag_transform[0, 3])
             camera_location_angle_score = camera_location_angle
 
-            # Add the camera position to the detection
+            # Add camera position info to the detection
             detections[-1]['camera_location'] = camera_origin_homogeneous
             detections[-1]['camera_direction'] = camera_forward_homogeneous
             detections[-1]['camera_location_score'] = camera_location_angle_score
 
-            # Update the best camera position
+            # Update the best camera position if this tag is better
             if best_camera_to_tag_transform is None or camera_location_angle_score > best_camera_location_angle_score:
                 best_camera_tag_id = r.tag_id
                 best_camera_to_tag_transform = camera_to_tag_transform
@@ -231,7 +281,7 @@ class AprilTagDetector:
                 best_camera_direction_field = camera_direction_field
                 best_camera_location_angle_score = camera_location_angle_score
 
-            # Update the detected tags set
+            # Process target tag
             if r.tag_id == target:
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_distance", tag_distance)
                 self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/target_bearing", tag_bearing)
