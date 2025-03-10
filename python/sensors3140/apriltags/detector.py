@@ -386,7 +386,10 @@ class AprilTagDetector:
             #self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_score", best_camera_location_angle_score)
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_timestamp", frame_data.timestamp)
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_quailty", best_location_quality)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_detected", 1.0)
             #print(f"Best camera position quality: {best_location_quality:.2f}")
+        else:
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_detected", 0.0)
 
 
         # publish the processing time
