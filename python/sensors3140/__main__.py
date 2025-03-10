@@ -12,7 +12,7 @@ import logging  # Add logging import
 
 import sensors3140
 import sensors3140.tables.network_tables as nt
-from sensors3140.apriltag.detector import AprilTagDetector
+from sensors3140.apriltags.detector import AprilTagDetector
 from sensors3140.maps import live_map_display
 from sensors3140.camera.streaming_task import StreamingTask
 

@@ -6,7 +6,7 @@ import numpy as np
 import logging
 import json
 import os
-from sensors3140.apriltag.detector import AprilTagDetector
+from sensors3140.apriltags.detector import AprilTagDetector
 from sensors3140.tables.network_tables import NetworkTablesManager
 
 _logger = logging.getLogger(__name__)

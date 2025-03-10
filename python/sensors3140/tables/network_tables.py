@@ -173,7 +173,6 @@ class NetworkTablesManager:
 
     def getIntegerArray(self, path, default = []):
         double_array = self.getDoubleArray(path, default)
-        print(double_array)
         return [int(x+0.5) for x in double_array]
     
 

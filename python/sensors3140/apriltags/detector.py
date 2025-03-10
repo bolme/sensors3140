@@ -351,6 +351,7 @@ class AprilTagDetector:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_direction", best_camera_direction_field.flatten())
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_tag", best_camera_tag_id)
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_score", best_camera_location_angle_score)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_timestamp", frame_data.timestamp)
 
         # publish the processing time
         end_time = time.time()
