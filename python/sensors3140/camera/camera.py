@@ -99,6 +99,9 @@ class Camera:
         # Connect to the camera
         try:
             self.cap = cv2.VideoCapture(self.camera_id)
+
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*'MJPG'))
+
             if not self.cap.isOpened():
                 raise RuntimeError(f"Failed to open camera {self.camera_id}")
             
