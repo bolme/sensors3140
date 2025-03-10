@@ -3,7 +3,7 @@ import apriltag
 import numpy as np
 import logging
 np.set_printoptions(precision=3, suppress=True)
-from sensors3140.maps.maps import get_map, FieldMap
+from sensors3140.maps import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 import ctypes
