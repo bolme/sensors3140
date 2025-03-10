@@ -8,12 +8,17 @@ from typing import List
 import cv2
 import numpy as np
 import psutil
+import logging  # Add logging import
 
 import sensors3140
 import sensors3140.tables.network_tables as nt
 from sensors3140.apriltag.detector import AprilTagDetector
 from sensors3140.maps import maps
 from sensors3140.camera.streaming_task import StreamingTask
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+_logging = logging.getLogger(__name__)
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Sensors3140")
@@ -97,18 +102,10 @@ def display_apriltag_pose(img, detections):
 
     return img
 
-def main():
-    map_display = None
-
-    # Parse command line arguments
-    args = parse_args()
-
-    files = os.listdir(sensors3140.sensors3140_directory)
-
-    # Scan the configuration directory for network configuration
+def initialize_network_tables():
     network_config_path = os.path.join(sensors3140.sensors3140_directory, "network.json")
     if not os.path.exists(network_config_path):
-        print(f"Network configuration not found. Creating at {network_config_path}")
+        _logging.info(f"Network configuration not found. Creating at {network_config_path}")
         data = {
             "network_table_ip": "10.31.40.2",
             "network_table_port": 1735
@@ -116,124 +113,102 @@ def main():
         with open(network_config_path, "w") as f:
             json.dump(data, f, indent=4)
 
-    with open(os.path.join(sensors3140.sensors3140_directory, "network.json"), "r") as f:
+    with open(network_config_path, "r") as f:
         data = json.load(f)
-        print("Loaded network configuration")
+        _logging.info("Loaded network configuration")
 
     tables = nt.NetworkTablesManager(data["network_table_ip"])
-    # Wait for network tables to connect
     for _ in range(50): 
         if tables.is_connected():
             break
         time.sleep(0.1)
     if not tables.is_connected():
-        print("WARNING: Failed to connect to NetworkTables")
+        _logging.warning("Failed to connect to NetworkTables")
     else:
-        print("Connected to NetworkTables")
+        _logging.info("Connected to NetworkTables")
+    return tables
 
-    # Scan the configuration directory for camera configurations
+def initialize_cameras(tables):
+    files = os.listdir(sensors3140.sensors3140_directory)
     cameras = []
     for file in files:
-        # Use regular expression to match camera_<int>.json
         match = re.match(r"camera_(\d+)\.json", file)
         if match:
-            data = {}
             with open(os.path.join(sensors3140.sensors3140_directory, file), "r") as f:
                 data = json.load(f)
-
-            # Create a camera object from the configuration
-            camera = sensors3140.Camera(frame_stas=False, **data)
-
-            # Add the camera to the list
+            width,height = data["frame_size"]
+            camera = sensors3140.Camera(frame_stas=False,width=width,height=height,**data)
             cameras.append(camera)
-
-            # Initialize network tables for the camera
             camera.initialize_network_tables(tables)
+            _logging.info(f"Created camera {camera.camera_id}")
+    return cameras
 
-            print("Created camera", camera.camera_id)
+def update_system_metrics(tables):
+    current_time = time.time()
+    tables.setDouble("sensors3140/timestamp", current_time)
+    load_average = os.getloadavg()
+    tables.setDoubleArray("sensors3140/load_average", load_average)
+    memory_usage = psutil.virtual_memory().percent
+    tables.setDouble("sensors3140/memory_usage", memory_usage)
+    return current_time
 
-    print(f"Found {len(cameras)} cameras in directory {sensors3140.sensors3140_directory}.")
-    
-    camera_ids = [camera.camera_id for camera in cameras]
-    tables.setDoubleArray("sensors3140/camera_ids", camera_ids)
-
-    time.sleep(3)
-
-    at_detectors = [AprilTagDetector(camera.camera_id, camera_params=camera.camera_params, dist_coeff=camera.dist_coeffs) for camera in cameras]
-
-    # Create a streaming task for each camera
-    streaming_tasks = [StreamingTask(camera.camera_id) for camera in cameras]
-    # Start the streaming tasks
-    for task in streaming_tasks:
-        task.start()
-
-    prev_time = time.time()
+def process_camera_frames(cameras, at_detectors, streaming_tasks, tables, args):
     running = True
+    map_display = None
+    if args.map:
+        map_display = maps.LiveMapDisplay("2025-reefscape")
+        map_display.load()
+        map_display.set_robot_size(0.74, 0.74)
+    
     while running:
-        current_time = time.time()
-
-        tables.setDouble("sensors3140/timestamp", current_time)
-        load_average = os.getloadavg()
-        tables.setDoubleArray("sensors3140/load_average", load_average)
-        memory_usage = psutil.virtual_memory().percent
-        tables.setDouble("sensors3140/memory_usage", memory_usage)
-        # tables.setDoubleArray("sensors3140/temperature", [psutil.sensors_temperatures().get('coretemp')[0].current])
-
-        dt = current_time - prev_time
-        sleep_time = 0.033 - dt
-        if sleep_time > 0:
-            time.sleep(sleep_time)
-        prev_time = current_time
-
+        current_time = update_system_metrics(tables)
+        detected_tags = []
+        
         for camera, at_detector, stream in zip(cameras, at_detectors, streaming_tasks):
-            camera: sensors3140.Camera
-            at_detector: AprilTagDetector
-
             frame_data = camera.get_frame()
-            frame_data: sensors3140.camera.camera.FrameData
-            frame = frame_data.frame
-            frame_id = frame_data.frame_id
-            prev_time = frame_data.timestamp
-            
-            # Update the live camera values
-            camera.update_network_tables(tables)
-
-            detections = at_detector(frame_data)
-
-            stream.add_input(frame_data)
-
-            # Process the frame here
-            if args.display:
-                # Display apriltag boxes
-                frame = display_apriltag_boxes(frame, detections)
-
-                frame = display_apriltag_pose(frame, detections)
-
-                cv2.imshow(f"Camera {camera.camera_id}", frame)
-            
-                # Handle quit condition
-                key = cv2.waitKey(1)
-
-                if key == ord('q'):
-                    running = False
-
-        if args.map:
-            # Create the map display if it doesn't exist
-            if map_display is None:
-                map_display = maps.LiveMapDisplay("2025-reefscape")
-                map_display.load()
-                map_display.set_robot_size(0.74, 0.74)
-
-            # Update the detected tags
-            detected_tags = []
-            for detector in at_detectors:
-                detected_tags += detector.get_detected_tags()
-
+            if frame_data is not None and frame_data.frame is not None:
+                frame = frame_data.frame
+                camera.update_network_tables(tables)
+                detections = at_detector(frame_data)
+                detected_tags.extend(detections)
+                stream.add_input(frame_data)
+                if args.display:
+                    frame = display_apriltag_boxes(frame, detections)
+                    frame = display_apriltag_pose(frame, detections)
+                    cv2.imshow(f"Camera {camera.camera_id}", frame)
+        
+        if args.map and map_display:
             map_display.set_detected_tags(detected_tags)
-
-            map_display: maps.LiveMapDisplay
-
             map_display.display()
+            
+        if cv2.waitKey(1) == ord('q'):
+            running = False
+            
+        time.sleep(max(0, 0.033 - (time.time() - current_time)))
+
+def main():
+    try:
+        args = parse_args()
+        tables = initialize_network_tables()
+        cameras = initialize_cameras(tables)
+        camera_ids = [camera.camera_id for camera in cameras]
+        tables.setDoubleArray("sensors3140/camera_ids", camera_ids)
+        time.sleep(3)
+        at_detectors = [AprilTagDetector(camera.camera_id, camera_params=camera.camera_params, dist_coeff=camera.dist_coeffs) for camera in cameras]
+        streaming_tasks = [StreamingTask(camera.camera_id) for camera in cameras]
+        for task in streaming_tasks:
+            task.start()
+        process_camera_frames(cameras, at_detectors, streaming_tasks, tables, args)
+    except KeyboardInterrupt:
+        _logging.info("Program interrupted by user")
+    finally:
+        # Clean up resources
+        _logging.info("Shutting down...")
+        for task in streaming_tasks:
+            task.stop()
+        for camera in cameras:
+            camera.release()
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()

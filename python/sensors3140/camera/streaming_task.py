@@ -24,9 +24,10 @@ class StreamingTask(TaskBase):
         self.height = height
         self.fps = fps
         self.prev_frame = None
+        self.camera_name = f"camera{sensor_id}"
 
         # Initialize cscore components for MJPEG streaming
-        self.camera = cs.CvSource("cvsource", cs.VideoMode.PixelFormat.kMJPEG, 
+        self.camera = cs.CvSource(self.camera_name, cs.VideoMode.PixelFormat.kMJPEG, 
                                 width, height, fps)
         global CURRENT_PORT
         port = CURRENT_PORT
@@ -155,8 +156,9 @@ class StreamingTask(TaskBase):
         """
         self.logger.info(f"Stopping stream for camera{self.sensor_id}")
         super().stop()
-        self.camera.close()
-        self.mjpegServer.close()
+        
+        # Free resources correctly - CvSource doesn't have close()
+        cs.CameraServer.removeCamera(self.camera_name)
 
 
 
