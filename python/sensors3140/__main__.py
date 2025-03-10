@@ -41,7 +41,6 @@ def display_apriltag_boxes(img, detections):
 
     return img
 
-
 def display_apriltag_pose(img, detections):
     for detection in detections:
         pose = detection['pose']
@@ -51,7 +50,7 @@ def display_apriltag_pose(img, detections):
 
         camera_params = detection['camera_params']
 
-        # tag center is the translation in homogenous coordinates
+        # Tag center is the translation in homogenous coordinates
         tag_center = np.array([[tag_translation[0]], [tag_translation[1]], [tag_translation[2]], [1.0]])
 
         # Compute the 3x4 camera projection matrix
@@ -65,7 +64,7 @@ def display_apriltag_pose(img, detections):
 
         image_coords = transformed_center[0:2] / transformed_center[2]
 
-        # Draw the tag_center as a yellow circle outline
+        # Draw the tag center as a yellow circle outline
         cv2.circle(img, tuple(image_coords[0:2].flatten().astype(int)), 30, (0, 255, 255), 2)
 
         # Draw 0.1m x, y, z axes for the tag
@@ -98,11 +97,7 @@ def display_apriltag_pose(img, detections):
 
     return img
 
-
-
-
 def main():
-
     map_display = None
 
     # Parse command line arguments
@@ -113,7 +108,7 @@ def main():
     # Scan the configuration directory for network configuration
     network_config_path = os.path.join(sensors3140.sensors3140_directory, "network.json")
     if not os.path.exists(network_config_path):
-        print(f"Network configuration not found.  Creating at {network_config_path}")
+        print(f"Network configuration not found. Creating at {network_config_path}")
         data = {
             "network_table_ip": "10.31.40.2",
             "network_table_port": 1735
@@ -125,9 +120,8 @@ def main():
         data = json.load(f)
         print("Loaded network configuration")
 
-
     tables = nt.NetworkTablesManager(data["network_table_ip"])
-    # wait for network tables to connect
+    # Wait for network tables to connect
     for _ in range(50): 
         if tables.is_connected():
             break
@@ -136,7 +130,6 @@ def main():
         print("WARNING: Failed to connect to NetworkTables")
     else:
         print("Connected to NetworkTables")
-
 
     # Scan the configuration directory for camera configurations
     cameras = []
@@ -149,27 +142,24 @@ def main():
                 data = json.load(f)
 
             # Create a camera object from the configuration
-            camera = sensors3140.Camera(frame_stas=False,**data)
+            camera = sensors3140.Camera(frame_stas=False, **data)
 
             # Add the camera to the list
             cameras.append(camera)
 
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps", camera.fps)
-            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/parameters", camera.parameters)
-            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/distortion", camera.dist_coeffs)
-            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/fov", camera.get_fov())
-            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/size", [camera.width,camera.height])
+            # Initialize network tables for the camera
+            camera.initialize_network_tables(tables)
 
             print("Created camera", camera.camera_id)
 
     print(f"Found {len(cameras)} cameras in directory {sensors3140.sensors3140_directory}.")
     
     camera_ids = [camera.camera_id for camera in cameras]
-    tables.setDoubleArray("sensors3140/camera_ids",camera_ids)
+    tables.setDoubleArray("sensors3140/camera_ids", camera_ids)
 
     time.sleep(3)
 
-    at_detectors = [AprilTagDetector(camera.camera_id,camera_params=camera.parameters,dist_coeff=camera.dist_coeffs) for camera in cameras]
+    at_detectors = [AprilTagDetector(camera.camera_id, camera_params=camera.camera_params, dist_coeff=camera.dist_coeffs) for camera in cameras]
 
     # Create a streaming task for each camera
     streaming_tasks = [StreamingTask(camera.camera_id) for camera in cameras]
@@ -187,9 +177,7 @@ def main():
         tables.setDoubleArray("sensors3140/load_average", load_average)
         memory_usage = psutil.virtual_memory().percent
         tables.setDouble("sensors3140/memory_usage", memory_usage)
-        #tables.setDoubleArray("sensors3140/temperature", [psutil.sensors_temperatures().get('coretemp')[0].current])
-
-
+        # tables.setDoubleArray("sensors3140/temperature", [psutil.sensors_temperatures().get('coretemp')[0].current])
 
         dt = current_time - prev_time
         sleep_time = 0.033 - dt
@@ -197,7 +185,7 @@ def main():
             time.sleep(sleep_time)
         prev_time = current_time
 
-        for camera,at_detector, stream in zip(cameras,at_detectors, streaming_tasks):
+        for camera, at_detector, stream in zip(cameras, at_detectors, streaming_tasks):
             camera: sensors3140.Camera
             at_detector: AprilTagDetector
 
@@ -208,19 +196,11 @@ def main():
             prev_time = frame_data.timestamp
             
             # Update the live camera values
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/frame_id", frame_id)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/timestamp", prev_time)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps_current", camera.current_fps)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/fps_ave", camera.ave_fps)
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/exposure", camera.get_exposure())
-            tables.setDouble(f"sensors3140/camera{camera.camera_id}/gain", camera.get_gain())
-            tables.setDoubleArray(f"sensors3140/camera{camera.camera_id}/frame_stats", camera.get_frame_stats())
-
+            camera.update_network_tables(tables)
 
             detections = at_detector(frame_data)
 
             stream.add_input(frame_data)
-
 
             # Process the frame here
             if args.display:
@@ -237,7 +217,6 @@ def main():
                 if key == ord('q'):
                     running = False
 
-                
         if args.map:
             # Create the map display if it doesn't exist
             if map_display is None:
@@ -245,7 +224,7 @@ def main():
                 map_display.load()
                 map_display.set_robot_size(0.74, 0.74)
 
-            # update the detected tags
+            # Update the detected tags
             detected_tags = []
             for detector in at_detectors:
                 detected_tags += detector.get_detected_tags()
@@ -255,8 +234,6 @@ def main():
             map_display: maps.LiveMapDisplay
 
             map_display.display()
-
-
 
 if __name__ == "__main__":
     main()
