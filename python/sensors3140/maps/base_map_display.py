@@ -5,7 +5,16 @@ from typing import Dict, List, Tuple, Any
 from sensors3140.maps.field_map import get_map
 
 class BaseMapDisplay:
+    """
+    Base class for displaying a field map with robot and camera positions.
+    """
     def __init__(self, game_id: str):
+        """
+        Initialize the BaseMapDisplay
+        
+        Args:
+            game_id: ID of the game field map to use
+        """
         self.game_id = game_id
         self.image_path = os.path.join(os.path.dirname(__file__), 'images', f"{game_id}.jpg")
         self.img = None
@@ -19,24 +28,53 @@ class BaseMapDisplay:
         self.robot_y = 0.0
         self._detections = {}
 
-        self.camera_positions = {} # camera_id -> (x, y, z, rotation, tag_id, tag_distace,elapsed_time)
+        self.camera_positions = {}  # camera_id -> (x, y, z, rotation, tag_id, tag_distance, elapsed_time)
 
     def load(self) -> None:
+        """
+        Load the field map image
+        """
         self.img = cv2.imread(self.image_path)
         assert self.img is not None, f"Could not load image {self.game_id}.jpg"
         self.image_width = self.img.shape[1]
         self.image_height = self.img.shape[0]
 
     def update_camera_position(self, camera_id: int, camera_xyz: Tuple[float, float, float], camera_angle: float, tag_id: int = None, tag_distance: float = None, elapsed_time: float = None) -> None:
+        """
+        Update the position of a camera
+        
+        Args:
+            camera_id: ID of the camera
+            camera_xyz: (x, y, z) position of the camera
+            camera_angle: Rotation angle of the camera
+            tag_id: ID of the tag being detected
+            tag_distance: Distance to the detected tag
+            elapsed_time: Time elapsed since the last update
+        """
         if len(camera_xyz) >= 3:
             self.camera_positions[camera_id] = (camera_xyz[0], camera_xyz[1], camera_xyz[2], camera_angle, tag_id, tag_distance, elapsed_time)
         else:
             raise ValueError(f"camera_xyz must have at least 3 elements, got {len(camera_xyz)}")
 
     def set_detected_tags(self, detections: List[Dict[str, Any]]) -> None:
+        """
+        Set the detected tags
+        
+        Args:
+            detections: List of detected tags
+        """
         self._detections = {detection['id']: detection for detection in detections}
 
     def real_world_to_pixel(self, points: Tuple[float, float]) -> Tuple[int, int]:
+        """
+        Convert real-world coordinates to pixel coordinates
+        
+        Args:
+            points: (x, y) coordinates in the real world
+        
+        Returns:
+            (x, y) coordinates in pixels
+        """
         x, y = points
         y = self.field_width - y
         x = x / self.field_length * self.image_width
@@ -44,15 +82,33 @@ class BaseMapDisplay:
         return int(x), int(y)
 
     def set_robot_size(self, width: float, height: float) -> None:
+        """
+        Set the size of the robot
+        
+        Args:
+            width: Width of the robot in meters
+            height: Height of the robot in meters
+        """
         self.robot_width = width / self.field_length * self.image_width
         self.robot_height = height / self.field_width * self.image_height
 
     def set_robot_position(self, x: float, y: float, rotation_degrees: float) -> None:
+        """
+        Set the position and rotation of the robot
+        
+        Args:
+            x: X-coordinate of the robot
+            y: Y-coordinate of the robot
+            rotation_degrees: Rotation angle of the robot in degrees
+        """
         self.robot_x = x
         self.robot_y = y
         self.robot_rotation_degrees = rotation_degrees
 
     def draw_robot(self) -> None:
+        """
+        Draw the robot on the field map
+        """
         robot_color = (0, 255, 255)
         robot_outline_color = (0, 0, 0)
         robot_outline_thickness = 2
@@ -69,6 +125,12 @@ class BaseMapDisplay:
         cv2.circle(self.img, (x, y), 10, (0, 255, 0), -1)
 
     def draw_camera_positions(self, img) -> None:
+        """
+        Draw the positions of the cameras on the field map
+        
+        Args:
+            img: Image to draw on
+        """
         for camera_id, (x, y, z, rotation, tag_id, tag_distance, elapsed_time) in self.camera_positions.items():
             if elapsed_time > 2:
                 continue
@@ -99,12 +161,13 @@ class BaseMapDisplay:
                     # print the tag distance at the tag location
                     cv2.putText(img, f"{tag_distance:.2f}m", (tag_x, tag_y), cv2.FONT_HERSHEY_SIMPLEX, 1, tag_color, 2)
             # draw the camera location
-            
             cv2.circle(img, (pixel_x, pixel_y), 15, camera_color, -1)
             cv2.putText(img, f"{camera_id}", (pixel_x, pixel_y), cv2.FONT_HERSHEY_SIMPLEX, 1, camera_color, 2)
-            
 
     def display(self) -> None:
+        """
+        Display the field map with the robot and camera positions
+        """
         img = self.img.copy()
 
         self.draw_camera_positions(img)

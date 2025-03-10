@@ -82,6 +82,9 @@ if __name__ == "__main__":
 
     tables = nt.NetworkTablesManager(args.server)
 
+    while not tables.is_connected():
+        print("Looking for connection.")
+
     display = NTMapDisplay(args.game)
     display.load()
     print(f'Loaded {args.game} map...')

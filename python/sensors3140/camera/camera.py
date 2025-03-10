@@ -106,17 +106,18 @@ class Camera:
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
             self.cap.set(cv2.CAP_PROP_FPS, self.fps_target)
-            
+
+                        
             # Check if camera settings were applied correctly
-            actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
-            actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-            actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+            self.actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+            self.actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+            self.actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
             
-            if abs(actual_width - self.width) > 1 or abs(actual_height - self.height) > 1:
-                _logger.warning(f"Camera {self.name} resolution set to {actual_width}x{actual_height} "
+            if abs(self.actual_width - self.width) > 1 or abs(self.actual_height - self.height) > 1:
+                _logger.warning(f"Camera {self.name} resolution set to {self.actual_width}x{self.actual_height} "
                                f"(requested {self.width}x{self.height})")
-                self.width = int(actual_width)
-                self.height = int(actual_height)
+                self.width = int(self.actual_width)
+                self.height = int(self.actual_height)
             
             # Apply optional camera settings
             if 'exposure' in kwargs:
@@ -327,6 +328,9 @@ class Camera:
         tables.setDouble(f"sensors3140/camera{self.camera_id}/timestamp", self.prev_frame_time)
         tables.setDouble(f"sensors3140/camera{self.camera_id}/fps_current", self.current_fps)
         tables.setDouble(f"sensors3140/camera{self.camera_id}/fps_ave", self.average_fps)
+        tables.setDouble(f"sensors3140/camera{self.camera_id}/hardware_fps", self.actual_fps)
+        tables.setDouble(f"sensors3140/camera{self.camera_id}/hardware_width", self.actual_width)
+        tables.setDouble(f"sensors3140/camera{self.camera_id}/hardware_height", self.actual_height)
         tables.setDouble(f"sensors3140/camera{self.camera_id}/exposure", self.get_exposure())
         tables.setDouble(f"sensors3140/camera{self.camera_id}/gain", self.get_gain())
         tables.setDoubleArray(f"sensors3140/camera{self.camera_id}/frame_stats", self.get_frame_stats())
