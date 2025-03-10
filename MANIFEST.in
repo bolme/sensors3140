@@ -1,0 +1,2 @@
+include python/sensors3140/maps/images/*
+include python/sensors3140/maps/data/*

@@ -1,37 +1,12 @@
-# a live map that displays infor from network table.
-
-# Use opencv to load in 2025_reefscape.jpg and 2025_reefscape.json and display the image with april tags overlayed on top of the image.
-# This supports the FRC 2025 game Reefscape. The april tags are used to determine the position of the robot on the field.
-print( 'NTMapStart')
-
 import cv2
 import numpy as np
 import json
 import argparse
 import os
-print("Loading networktables")
 import sensors3140.tables.network_tables as nt
 
-print('NTMap Load.')
-
-# References:
-#
-# Robot Coordinate System: https://docs.wpilib.org/en/stable/docs/software/basic-programming/coordinate-system.html
-
-
-# Field coordinate notes:
-# The x-axis is the long axis of the field, From the blue side to the red side
-# The z-axis is the vertical axis, from the floor to the ceiling
-# The y-axis is the short axis of the field in right-hand rule.  It runs to the left of the blue side to the right of the red side
-
-# Tag coordinate notes:
-# When detected by the apriltag library it is in image coordinates.  If the tag is upright:
-# The z-axes is depth and is positive away from the camera
-# The x-axis is positive to the right
-# The y-axis is positive down
-
 def load_apriltags(game_id):
-    json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
+    json_path = os.path.join(os.path.dirname(__file__), 'data', f"{game_id}.json")
     with open(json_path) as f:
         data = json.load(f)
         for tag in data['tags']:
@@ -44,7 +19,6 @@ def load_apriltags(game_id):
             qx = tag['pose']['rotation']['quaternion']['X']
             qy = tag['pose']['rotation']['quaternion']['Y']
             qz = tag['pose']['rotation']['quaternion']['Z']
-
 
             # Create a transform that converts from the tag coordinate system to the field coordinate system
             rotation_matrix = np.array([[1 - 2*qy**2 - 2*qz**2, 2*qx*qy - 2*qz*qw, 2*qx*qz + 2*qy*qw],
@@ -82,7 +56,7 @@ def load_apriltags(game_id):
 class NTMapDisplay:
     def __init__(self, game_id):
         self.game_id = game_id
-        self.image_path = os.path.join(os.path.dirname(__file__), f"{game_id}.jpg")
+        self.image_path = os.path.join(os.path.dirname(__file__), 'images', f"{game_id}.jpg")
         self.img = None
 
         self.map_data = load_apriltags(game_id)
@@ -144,7 +118,6 @@ class NTMapDisplay:
         self.robot_rotation_degrees = rotation_degrees
 
     def draw_robot(self):
-        # draw the robot
         # draw the robot
         robot_color = (0, 255, 255)
         robot_outline_color = (0, 0, 0)
@@ -333,6 +306,3 @@ if __name__ == "__main__":
 
     print("Closing Map")
     cv2.destroyAllWindows()
-    
-    
-    

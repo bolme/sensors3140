@@ -1,6 +1,3 @@
-# Use opencv to load in 2025_reefscape.jpg and 2025_reefscape.json and display the image with april tags overlayed on top of the image.
-# This supports the FRC 2025 game Reefscape. The april tags are used to determine the position of the robot on the field.
-
 import cv2
 import numpy as np
 import json
@@ -10,7 +7,6 @@ import os
 def parse_args():
     parser = argparse.ArgumentParser(description='Display image with AprilTags overlayed')
     parser.add_argument('--game_id', type=str, help='Path to image file', default='2025-reefscape')
-    parser.add_argument('--side', type=str, help='controls the rotation of the map to Blue or Red Orientations', default=None)
     return parser.parse_args()
 
 if __name__ == "__main__":
@@ -18,8 +14,8 @@ if __name__ == "__main__":
     game_id = parse_args().game_id
 
     # get the location of this module
-    image_path = os.path.join(os.path.dirname(__file__), f"{game_id}.jpg")
-    json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
+    image_path = os.path.join(os.path.dirname(__file__), 'images', f"{game_id}.jpg")
+    json_path = os.path.join(os.path.dirname(__file__), 'data', f"{game_id}.json")
 
     img = cv2.imread(image_path)
     assert img is not None, f"Could not load image {game_id}.jpg"
@@ -35,25 +31,6 @@ if __name__ == "__main__":
 
     # Plot the april tag locations
     for tag in data['tags']:
-        # Tag format:
-        #         {
-        #   "ID": 22,
-        #   "pose": {
-        #     "translation": {
-        #       "x": 4.904739999999999,
-        #       "y": 3.3063179999999996,
-        #       "z": 0.308102
-        #     },
-        #     "rotation": {
-        #       "quaternion": {
-        #         "W": -0.8660254037844387,
-        #         "X": -0.0,
-        #         "Y": 0.0,
-        #         "Z": 0.49999999999999994
-        #       }
-        #     }
-        #   }
-        # }
         id = tag['ID']
         x = tag['pose']['translation']['x']
         y = tag['pose']['translation']['y']
@@ -88,5 +65,3 @@ if __name__ == "__main__":
     cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
     cv2.imshow(window_name, img)
     key = cv2.waitKey(30000)
-
-    

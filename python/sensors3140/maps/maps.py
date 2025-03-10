@@ -93,7 +93,7 @@ def get_map(game_id):
     return GLOBAL_MAP_STORAGE[game_id]
 
 def _load_apriltags(game_id):
-    json_path = os.path.join(os.path.dirname(__file__), f"{game_id}.json")
+    json_path = os.path.join(os.path.dirname(__file__), 'data', f"{game_id}.json")
     with open(json_path) as f:
         data = json.load(f)
 
@@ -120,7 +120,7 @@ def _load_apriltags(game_id):
 class LiveMapDisplay:
     def __init__(self, game_id):
         self.game_id = game_id
-        self.image_path = os.path.join(os.path.dirname(__file__), f"{game_id}.jpg")
+        self.image_path = os.path.join(os.path.dirname(__file__), 'images', f"{game_id}.jpg")
         self.img = None
 
         self.map_data = get_map(game_id)
@@ -299,6 +299,3 @@ if __name__ == "__main__":
     display.set_robot_size(0.5, 0.5)
     display.set_robot_position(0.0, 0.0, 30)
     display.display()
-
-
-    
