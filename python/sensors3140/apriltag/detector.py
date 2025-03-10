@@ -7,10 +7,11 @@ from sensors3140.maps.maps import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
 import ctypes
+from typing import List, Dict, Tuple, Any
 
 _logger = logging.getLogger(__name__)
 
-def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_size=.1651, z_sign=1):
+def local_detection_pose(detector: apriltag.Detector, detection: apriltag.Detection, camera_params: List[float], dist_coeffs: List[float], tag_size: float = .1651, z_sign: int = 1) -> Tuple[np.ndarray, float, float]:
     """
     Calculate the pose of an AprilTag in the camera reference frame
     
@@ -82,7 +83,7 @@ class AprilTagDetector:
     
     This class handles tag detection, pose estimation, and field positioning based on tags.
     """
-    def __init__(self, camera_id, tag_family="tag36h11", camera_params=None, dist_coeff=None, tag_size=.1651, game_id="2025-reefscape"):
+    def __init__(self, camera_id: int, tag_family: str = "tag36h11", camera_params: List[float] = None, dist_coeff: List[float] = None, tag_size: float = .1651, game_id: str = "2025-reefscape"):
         """
         Initialize the AprilTag detector
         
@@ -140,14 +141,14 @@ class AprilTagDetector:
         _logger.info(f"Created AprilTagDetector for camera {camera_id}")
 
 
-    def load_map(self, game_id):
+    def load_map(self, game_id: str) -> None:
         """Load the field map containing AprilTag positions"""
         self.map_data = get_map(game_id)
         self.map_data: FieldMap
-        _logger.info(f"Loaded field map '{game_id}' with {len(self.map_data.getAllTags())} tags")
+        _logger.info(f"Loaded field map '{game_id}' with {len(self.map_data.get_all_tags())} tags")
 
 
-    def __call__(self, frame_data):
+    def __call__(self, frame_data: Any) -> List[Dict[str, Any]]:
         """
         Process a frame to detect AprilTags.
         This method takes a frame, detects AprilTags in it, calculates various metrics like 
@@ -258,11 +259,11 @@ class AprilTagDetector:
             detections[-1]['camera_translation'] = camera_origin_in_tag_space
 
             # Skip tags not in the field map
-            if r.tag_id not in self.map_data.getAllTags():
+            if r.tag_id not in self.map_data.get_all_tags():
                 continue
 
             # Get the tag position in field coordinates
-            tag_to_field_transform = self.map_data.getTagTransform(r.tag_id)
+            tag_to_field_transform = self.map_data.get_tag_transform(r.tag_id)
 
             # Calculate the camera position in field coordinates
             camera_origin_homogeneous = np.array([[0.0], [0.0], [0.0], [1.0]])
@@ -389,10 +390,10 @@ class AprilTagDetector:
 
         return detections
     
-    def get_detected_tags(self):
+    def get_detected_tags(self) -> List[Dict[str, Any]]:
         return self.detections
     
-    def decompose_pose_matrix(self, pose_matrix: np.ndarray) -> dict[str, float]:
+    def decompose_pose_matrix(self, pose_matrix: np.ndarray) -> Dict[str, float]:
         """
         Decompose 4x4 pose matrix into translation and rotation components
         Returns dictionary with x,y,z translations and roll,pitch,yaw angles in degrees

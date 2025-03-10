@@ -3,7 +3,7 @@ import json
 import os
 import re
 import time
-from typing import List
+from typing import List, Dict, Any
 
 import cv2
 import numpy as np
@@ -28,7 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--map", action="store_true", help="Display the map", default=False)
     return parser.parse_args()
 
-def display_apriltag_boxes(img, detections):
+def display_apriltag_boxes(img: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
     for detection in detections:
         # Draw the tag outline
         corners = detection['corners']
@@ -46,7 +46,7 @@ def display_apriltag_boxes(img, detections):
 
     return img
 
-def display_apriltag_pose(img, detections):
+def display_apriltag_pose(img: np.ndarray, detections: List[Dict[str, Any]]) -> np.ndarray:
     for detection in detections:
         pose = detection['pose']
 
@@ -102,7 +102,7 @@ def display_apriltag_pose(img, detections):
 
     return img
 
-def initialize_network_tables():
+def initialize_network_tables() -> nt.NetworkTablesManager:
     network_config_path = os.path.join(sensors3140.sensors3140_directory, "network.json")
     if not os.path.exists(network_config_path):
         _logging.info(f"Network configuration not found. Creating at {network_config_path}")
@@ -128,7 +128,7 @@ def initialize_network_tables():
         _logging.info("Connected to NetworkTables")
     return tables
 
-def initialize_cameras(tables):
+def initialize_cameras(tables: nt.NetworkTablesManager) -> List[sensors3140.Camera]:
     files = os.listdir(sensors3140.sensors3140_directory)
     cameras = []
     for file in files:
@@ -143,7 +143,7 @@ def initialize_cameras(tables):
             _logging.info(f"Created camera {camera.camera_id}")
     return cameras
 
-def update_system_metrics(tables):
+def update_system_metrics(tables: nt.NetworkTablesManager) -> float:
     current_time = time.time()
     tables.setDouble("sensors3140/timestamp", current_time)
     load_average = os.getloadavg()
@@ -152,7 +152,7 @@ def update_system_metrics(tables):
     tables.setDouble("sensors3140/memory_usage", memory_usage)
     return current_time
 
-def process_camera_frames(cameras, at_detectors, streaming_tasks, tables, args):
+def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[AprilTagDetector], streaming_tasks: List[StreamingTask], tables: nt.NetworkTablesManager, args: argparse.Namespace) -> None:
     running = True
     map_display = None
     if args.map:
@@ -186,7 +186,7 @@ def process_camera_frames(cameras, at_detectors, streaming_tasks, tables, args):
             
         time.sleep(max(0, 0.033 - (time.time() - current_time)))
 
-def main():
+def main() -> None:
     try:
         args = parse_args()
         tables = initialize_network_tables()
