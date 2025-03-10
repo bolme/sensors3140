@@ -6,6 +6,7 @@ import time
 from sensors3140.task_base import TaskBase, TaskPriority
 from sensors3140.tables.network_tables import NetworkTablesManager
 import sensors3140
+import logging
 
 # Track the currently assigned port to avoid port conflicts between multiple streams
 CURRENT_PORT = 8081
@@ -39,11 +40,18 @@ class StreamingTask(TaskBase):
         self.port = port
         self.sensor_id = sensor_id
 
+        # For periodic logging
+        self.last_log_time = time.time()
+        self.frames_streamed = 0
+        self.frames_dropped = 0
+
         # Initialize stream info in NetworkTables
         self.update_table()
 
         # Track when we last updated the table
         self.tableupdatetime = time.time()
+        
+        self.logger.info(f"Created streaming task for camera{sensor_id} on port {port} ({width}x{height} @ {fps} FPS)")
 
     def update_table(self):
         """
@@ -83,6 +91,18 @@ class StreamingTask(TaskBase):
         if current_time - self.tableupdatetime >= 10:
             self.update_table()
             self.tableupdatetime = current_time
+            
+            # Log streaming statistics every 10 seconds
+            if self.frames_streamed > 0 or self.frames_dropped > 0:
+                frame_size_mb = (self.width * self.height * 3) / (1024 * 1024)
+                self.logger.info(
+                    f"Stream camera{self.sensor_id}: Streamed {self.frames_streamed} frames, "
+                    f"dropped {self.frames_dropped} frames, "
+                    f"size: {self.width}x{self.height} ({frame_size_mb:.2f}MB), "
+                    f"target FPS: {self.fps:.1f}"
+                )
+                self.frames_streamed = 0
+                self.frames_dropped = 0
 
         # Update the current frame timestamp and ID in NetworkTables
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/timestamp", frame_data.timestamp)
@@ -93,13 +113,20 @@ class StreamingTask(TaskBase):
 
         # Empty the input queue to get the most recent frame
         # This helps reduce latency by skipping older frames
+        queue_dropped = 0
         while not self.input_queue.empty():
             frame_data = self.input_queue.get()
+            queue_dropped += 1
+            
+        if queue_dropped > 1:
+            self.logger.debug(f"Stream camera{self.sensor_id}: Dropped {queue_dropped-1} frames from queue")
+            self.frames_dropped += queue_dropped - 1
 
         # Rate limiting - drop frames to maintain target FPS
         if self.prev_frame is not None:
             time_diff = current_time - self.prev_frame
             if time_diff < 1.0 / self.fps:
+                self.frames_dropped += 1
                 return None
 
         self.prev_frame = frame_data.timestamp
@@ -114,6 +141,7 @@ class StreamingTask(TaskBase):
             self.camera.putFrame(frame)
             # Record latency metrics
             self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", current_time - frame_data.timestamp)
+            self.frames_streamed += 1
             return True
         except Exception as e:
             self.logger.error(f"Error streaming frame: {e}")
@@ -125,6 +153,7 @@ class StreamingTask(TaskBase):
         Override stop to cleanup cscore resources
         Properly closes the camera source and MJPEG server
         """
+        self.logger.info(f"Stopping stream for camera{self.sensor_id}")
         super().stop()
         self.camera.close()
         self.mjpegServer.close()

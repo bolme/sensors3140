@@ -61,6 +61,10 @@ class Camera:
         self.frame_id = 0
         self.prev_time = time.time()
         self.last_frame = None
+        
+        # For periodic logging
+        self.last_log_time = time.time()
+        self.frames_since_log = 0
 
         # Apply optional camera settings
         if 'exposure' in kwargs:
@@ -81,6 +85,8 @@ class Camera:
             self.parameters = np.array(kwargs['parameters'], dtype=np.float32)
 
         self.apriltag_detector = None
+        
+        _logger.info(f"Initialized camera {self.camera_id} with resolution {self.width}x{self.height} @ {fps} FPS")
 
         # Start the capture thread
         self.start_capture()
@@ -112,21 +118,37 @@ class Camera:
         while True:
             retval, img = self.cap.read(img)
             curr_time = time.time()
+            
+            if not retval:
+                _logger.warning(f"Failed to capture frame from camera {self.camera_id}")
+                time.sleep(0.1)  # Wait before trying again
+                continue
+                
             frame_data = FrameData(img, self.frame_id, curr_time)
             calibrated = self.isCalibrated()
             
             # Update FPS calculations
-            self.current_fps = 1.0 / max(curr_time - self.prev_time,0.001)  # Calculate FPS - avoid divide by zero
+            self.current_fps = 1.0 / max(curr_time - self.prev_time, 0.001)  # Calculate FPS - avoid divide by zero
             if self.ave_fps < 0.0:
                 self.ave_fps = self.current_fps
             else:
                 # Weighted moving average for smoother FPS readings
-                mix_ratio = min(1.0/self.fps,0.1)
+                mix_ratio = min(1.0/self.fps, 0.1)
                 self.ave_fps = (1-mix_ratio) * self.ave_fps + mix_ratio * self.current_fps
                 
             self.prev_time = curr_time
             self.frame_id += 1
             self.last_frame = img
+            self.frames_since_log += 1
+            
+            # Periodic logging - every 10 seconds
+            if curr_time - self.last_log_time >= 10:
+                frame_size_mb = (self.width * self.height * 3) / (1024 * 1024)  # Size in MB for RGB image
+                _logger.info(f"Camera {self.camera_id}: Captured {self.frames_since_log} frames in 10s, "
+                            f"size: {self.width}x{self.height} ({frame_size_mb:.2f}MB), "
+                            f"average FPS: {self.ave_fps:.2f}")
+                self.last_log_time = curr_time
+                self.frames_since_log = 0
 
             # Compute image quality statistics if enabled
             frame_stats = []
@@ -156,7 +178,7 @@ class Camera:
                     detections = self.apriltag_detector(img)
                     frame_data.detections = detections
                 else:
-                    print(f"Camera {self.camera_id} is not calibrated")
+                    _logger.warning(f"Camera {self.camera_id} is not calibrated")
 
     def get_frame(self):
         """
@@ -171,6 +193,7 @@ class Camera:
     def enable_apriltags(self):
         """Initialize AprilTag detector for this camera"""
         self.apriltag_detector = AprilTagDetector(camera_params=self.parameters)
+        _logger.info(f"Enabled AprilTag detection for camera {self.camera_id}")
     
     def get_fov(self):
         """
@@ -230,10 +253,10 @@ def load_cameras_from_config_directory(config_dir: str = None) -> dict:
     cameras = {}
     for file in os.listdir(config_dir):
         if file.startswith('camera') and file.endswith('.json'):
-            print(f"Loading camera configuration from {file}")
+            _logger.info(f"Loading camera configuration from {file}")
             with open(os.path.join(config_dir, file)) as f:
                 config = json.load(f)
-                print(config)
+                _logger.debug(f"Camera config: {config}")
                 camera = create_camera_from_config(config)
                 cameras[camera.camera_name] = camera
 
@@ -255,8 +278,8 @@ def create_camera_from_config(config: dict) -> Camera:
     width,height = config.get('frame_size', (640, 480))
     fps = config.get('fps', 30)
 
-    print(f"Creating camera {camera_name} with device ID {device_id}")
-    print(f"    Resolution: {width}x{height} @ {fps} FPS")
+    _logger.info(f"Creating camera {camera_name} with device ID {device_id}")
+    _logger.info(f"    Resolution: {width}x{height} @ {fps} FPS")
     
     camera = Camera(
         camera_name=camera_name,
@@ -280,6 +303,12 @@ def create_camera_from_config(config: dict) -> Camera:
 
 
 if __name__ == "__main__":
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
     cameras = load_cameras_from_config_directory()
     while True:
         for camera in cameras.values():

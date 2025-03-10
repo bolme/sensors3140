@@ -1,15 +1,14 @@
 import cv2
 import apriltag
 import numpy as np
+import logging
 np.set_printoptions(precision=3, suppress=True)
 from sensors3140.maps.maps import get_map, FieldMap
 from sensors3140.tables.network_tables import NetworkTablesManager
 import time
-
 import ctypes
 
-
-#dst = cv2.undistortPoints(src, cameraMatrix, distCoeffs)
+_logger = logging.getLogger(__name__)
 
 def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_size=.1651, z_sign=1):
     """
@@ -38,7 +37,6 @@ def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_si
     
     # Undistort corners for more accurate pose estimation
     corners = detection.corners.flatten().astype(np.float64).reshape(-1, 1, 2)
-    corners_orig = corners.copy()
 
     # Create camera matrix from intrinsic parameters
     camera_matrix = np.eye(3, 3, dtype=np.float64)
@@ -50,9 +48,8 @@ def local_detection_pose(detector, detection, camera_params, dist_coeffs, tag_si
     # Undistort corners
     corners = cv2.undistortPoints(corners, camera_matrix, dist_coeffs,P=camera_matrix).flatten()
 
-    print('Corners')
-    print(corners.flatten())
-    print(corners_orig.flatten())
+    # Debug log the corner positions (only at debug level to avoid excessive logging)
+    _logger.debug(f"Corners after undistortion: {corners.flatten()}")
 
     # Convert corners to C pointer for apriltag library
     dptr = ctypes.POINTER(ctypes.c_double)
@@ -119,6 +116,17 @@ class AprilTagDetector:
         self.detections = []
         self.decision_quality_average = None
         
+        # For periodic logging
+        self.last_log_time = time.time()
+        self.tags_detected = 0
+        
+        # For 1-second statistics logging
+        self.last_stats_time = time.time()
+        self.frames_processed = 0
+        self.second_tags_detected = 0
+        self.min_tag_distance = float('inf')
+        self.max_tag_distance = 0.0
+        
         # Load the field map with tag positions
         self.load_map(game_id)
 
@@ -129,13 +137,14 @@ class AprilTagDetector:
         self.table.setString(f"sensors3140/apriltags/camera{camera_id}/family", tag_family)
         self.table.setInteger(f"sensors3140/apriltags/camera{camera_id}/target_id", -1)
 
-        print(f"Created AprilTagDetector for camera {camera_id}")
+        _logger.info(f"Created AprilTagDetector for camera {camera_id}")
 
 
     def load_map(self, game_id):
         """Load the field map containing AprilTag positions"""
         self.map_data = get_map(game_id)
         self.map_data: FieldMap
+        _logger.info(f"Loaded field map '{game_id}' with {len(self.map_data.getAllTags())} tags")
 
 
     def __call__(self, frame_data):
@@ -153,33 +162,34 @@ class AprilTagDetector:
         Returns
         -------
         list
-            A list of dictionaries, each containing information about a detected AprilTag:
-            - id: Tag ID
-            - center: Center point of the tag in image coordinates
-            - corners: Corner points of the tag in image coordinates
-            - distance: Distance to the tag in meters
-            - bearing: Horizontal angle to the tag in degrees
-            - azimuth: Vertical angle to the tag in degrees
-            - tag_rotation: 3x3 rotation matrix representing tag orientation
-            - tag_translation: Tag position in camera frame
-            - pose: Full 4x4 transformation matrix from camera to tag
-            - pose_decomposed: Decomposed pose (translation and rotation)
-            - camera_params: Camera parameters used for pose estimation
-            - decision_margin: Confidence score of the detection
-            - tag_pose: Transformation from camera to tag
-            - camera_pose: Transformation from tag to camera
-            - camera_translation: Camera position in tag space
-            
-            For tags in the map, additional fields:
-            - camera_location: Camera position in field coordinates (homogeneous)
-            - camera_direction: Camera forward direction in field coordinates (homogeneous)
-            - camera_location_score: Score used to select best tag for camera positioning
+            A list of dictionaries, each containing information about a detected AprilTag.
         """
         start_time = time.time()
+        
+        # Increment frame counter
+        self.frames_processed += 1
+
+        # Check if frame is valid before processing
+        if frame_data is None or frame_data.frame is None or frame_data.frame.size == 0:
+            _logger.warning(f"Warning: Received empty frame in camera {self.camera_id}")
+            # Publish empty results
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/timestamp", 
+                                frame_data.timestamp if frame_data else time.time())
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/count", 0)
+            return []
 
         # Convert the frame to grayscale for tag detection
         gray = cv2.cvtColor(frame_data.frame, cv2.COLOR_BGR2GRAY)
         results = self.detector.detect(gray)
+        
+        # Increment detector stats
+        self.tags_detected += len(results)
+        self.second_tags_detected += len(results)
+
+        # Reset min/max distances when starting a new frame batch
+        if time.time() - self.last_stats_time > 1.0:
+            self.min_tag_distance = float('inf')
+            self.max_tag_distance = 0.0
 
         # Clear previous detections
         detections = []
@@ -208,11 +218,16 @@ class AprilTagDetector:
             tag_pose_matrices = local_detection_pose(self.detector, r, self.camera_params,self.dist_coeff, self.tag_size)
             tag_translation_camera_frame = tag_pose_matrices[0][0:3, 3]
             tag_distance = np.sqrt((tag_translation_camera_frame**2).sum())
+            
+            # Track min/max distances
+            self.min_tag_distance = min(self.min_tag_distance, tag_distance)
+            self.max_tag_distance = max(self.max_tag_distance, tag_distance)
+            
             tag_bearing = np.arctan2(tag_translation_camera_frame[0], tag_translation_camera_frame[2]) * 180.0 / np.pi
             tag_azimuth = np.arctan2(-tag_translation_camera_frame[1], tag_translation_camera_frame[2]) * 180.0 / np.pi
             
-            print(f"Tag {r.tag_id}: distance={tag_distance:.2f}m")
-            
+            _logger.debug(f"Tag {r.tag_id}: distance={tag_distance:.2f}m, bearing={tag_bearing:.1f}°, azimuth={tag_azimuth:.1f}°")
+                        
             # Add the detection to the list
             detections.append({
                 'id': r.tag_id,
@@ -342,6 +357,35 @@ class AprilTagDetector:
 
         # store the detections
         self.detections = detections
+
+        # Periodic logging
+        if time.time() - self.last_log_time > 60:
+            _logger.info(f"Camera {self.camera_id}: Detected {self.tags_detected} tags in the last minute")
+            self.tags_detected = 0
+            self.last_log_time = time.time()
+            
+        # Statistics logging (every 1 second)
+        current_time = time.time()
+        if current_time - self.last_stats_time > 1.0:
+            elapsed = current_time - self.last_stats_time
+            avg_detections = self.second_tags_detected / self.frames_processed if self.frames_processed > 0 else 0
+            
+            # Format distance info, handling the case when no tags are detected
+            distance_info = ""
+            if self.second_tags_detected > 0:
+                distance_info = f"dist=[{self.min_tag_distance:.2f}, {self.max_tag_distance:.2f}]m "
+            
+            _logger.info(
+                f"Camera {self.camera_id} stats: {self.frames_processed} frames in {elapsed:.2f}s "
+                f"{self.second_tags_detected} tags "
+                f"({avg_detections:.2f} avg) {distance_info}"
+            )
+            # Reset the counters
+            self.frames_processed = 0
+            self.second_tags_detected = 0
+            self.min_tag_distance = float('inf')
+            self.max_tag_distance = 0.0
+            self.last_stats_time = current_time
 
         return detections
     
