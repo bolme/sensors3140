@@ -9,6 +9,10 @@ import time
 import ctypes
 from typing import List, Dict, Tuple, Any
 
+POSITION_QUALITY_THRESHOLD = 0.1
+POSITION_QUALITY_MIN_ANGLE_LIMIT = np.pi*5./180. # seems like a good value
+DISTANCE_HALF_LIMIT = 5.0 # meters
+
 _logger = logging.getLogger(__name__)
 
 def local_detection_pose(detector: apriltag.Detector, detection: apriltag.Detection, camera_params: List[float], dist_coeffs: List[float], tag_size: float = .1651, z_sign: int = 1) -> Tuple[np.ndarray, float, float]:
@@ -309,11 +313,9 @@ class AprilTagDetector:
 
 
             # compute the angle quality
-            angle_limit = 50.0 # seems like a good value
-            angle_quality = np.cos(angle)*(np.arctan(50*angle)/(0.5*np.pi))**2
+            angle_quality = np.cos(angle)*(angle>POSITION_QUALITY_MIN_ANGLE_LIMIT)
             
-            distance_half_limit = 5.0 # meters
-            distance_quality = 1/(1+np.exp(0.5*(distance-distance_half_limit)))
+            distance_quality = 1/(1+np.exp(0.5*(distance-DISTANCE_HALF_LIMIT)))
 
             location_quality = angle_quality*distance_quality
 
@@ -376,7 +378,8 @@ class AprilTagDetector:
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", 0)
 
         # publish the best camera position
-        if isinstance(best_location_quality,float) and best_location_quality >= 0.1:
+
+        if isinstance(best_location_quality,float) and best_location_quality >= POSITION_QUALITY_THRESHOLD:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_position", best_camera_position_field.flatten())
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_direction", best_camera_direction_field.flatten())
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_tag", best_camera_tag_id)
