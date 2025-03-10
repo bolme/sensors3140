@@ -211,7 +211,8 @@ class AprilTagDetector:
         best_camera_position_field = None
         best_camera_direction_field = None
         best_camera_tag_id = None
-        best_camera_location_angle_score = None
+        best_location_quality = None
+        #best_camera_location_angle_score = None
 
         # Process each detected tag
         for r in results:
@@ -282,20 +283,50 @@ class AprilTagDetector:
 
             # Score this tag for camera positioning (favoring tags seen head-on)
             camera_location_angle = np.arctan2(camera_to_tag_transform[1, 3], camera_to_tag_transform[0, 3])
-            camera_location_angle_score = camera_location_angle
+            best_location_quality = camera_location_angle
 
             # Add camera position info to the detection
             detections[-1]['camera_location'] = camera_origin_homogeneous
             detections[-1]['camera_direction'] = camera_forward_homogeneous
-            detections[-1]['camera_location_score'] = camera_location_angle_score
+            detections[-1]['camera_location_score'] = best_location_quality
+
+            # Get the tag location and direction in field coordinates
+            tag_location = np.matmul(tag_to_field_transform, np.array([[0.0], [0.0], [0.0], [1.0]]))
+            tag_direction = np.matmul(tag_to_field_transform, np.array([[0.0], [0.0], [-1.0], [1.0]]))
+                                      
+            # If there is a ray in the tag direction find the closest point on the ray to the camera
+            
+            #subtract the tag location from the camera location
+            camera_to_tag = camera_position_field - tag_location[:3]
+            #subtract the tag location from the tag direction
+            tag_to_tag_direction = tag_direction[:3] - tag_location[:3]
+            # Find the angle in radians between the camera_to_tag and tag_to_tag_direction vectors
+            angle = np.arccos(np.dot(camera_to_tag.flatten(), tag_to_tag_direction.flatten()) / (np.linalg.norm(camera_to_tag) * np.linalg.norm(tag_to_tag_direction)))
+            
+            # camera to tag distance
+            distance = np.linalg.norm(camera_to_tag)
+
+
+
+            # compute the angle quality
+            angle_limit = 50.0 # seems like a good value
+            angle_quality = np.cos(angle)*(np.arctan(50*angle)/(0.5*np.pi))**2
+            
+            distance_half_limit = 5.0 # meters
+            distance_quality = 1/(1+np.exp(0.5*(distance-distance_half_limit)))
+
+            location_quality = angle_quality*distance_quality
+
+
+
 
             # Update the best camera position if this tag is better
-            if best_camera_to_tag_transform is None or camera_location_angle_score > best_camera_location_angle_score:
+            if best_camera_to_tag_transform is None or best_location_quality < location_quality:
                 best_camera_tag_id = r.tag_id
                 best_camera_to_tag_transform = camera_to_tag_transform
                 best_camera_position_field = camera_position_field
                 best_camera_direction_field = camera_direction_field
-                best_camera_location_angle_score = camera_location_angle_score
+                best_location_quality = location_quality
 
             # Process target tag
             if r.tag_id == target:
@@ -314,7 +345,6 @@ class AprilTagDetector:
             camera_angle_field = np.arctan2(camera_direction_field[1], camera_direction_field[0])*180.0/np.pi
             camera_angles.append(camera_angle_field)
             decision_margins.append(r.decision_margin)
-
 
         # Publish the detections to NetworkTables
         self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/timestamp", frame_data.timestamp)
@@ -346,12 +376,15 @@ class AprilTagDetector:
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/average_decision_margin", 0)
 
         # publish the best camera position
-        if best_camera_to_tag_transform is not None:
+        if isinstance(best_location_quality,float) and best_location_quality >= 0.1:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_position", best_camera_position_field.flatten())
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_direction", best_camera_direction_field.flatten())
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_tag", best_camera_tag_id)
-            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_score", best_camera_location_angle_score)
+            #self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_score", best_camera_location_angle_score)
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_timestamp", frame_data.timestamp)
+            self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_quailty", best_location_quality)
+            #print(f"Best camera position quality: {best_location_quality:.2f}")
+
 
         # publish the processing time
         end_time = time.time()

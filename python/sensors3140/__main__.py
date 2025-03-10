@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import psutil
 import logging  # Add logging import
+import traceback
 
 import sensors3140
 import sensors3140.tables.network_tables as nt
@@ -153,38 +154,44 @@ def update_system_metrics(tables: nt.NetworkTablesManager) -> float:
     return current_time
 
 def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[AprilTagDetector], streaming_tasks: List[StreamingTask], tables: nt.NetworkTablesManager, args: argparse.Namespace) -> None:
-    running = True
-    map_display = None
-    if args.map:
-        map_display = live_map_display.LiveMapDisplay("2025-reefscape")
-        map_display.load()
-        map_display.set_robot_size(0.74, 0.74)
-    
-    while running:
-        current_time = update_system_metrics(tables)
-        detected_tags = []
+        running = True
+        map_display = None
+        if args.map:
+            map_display = live_map_display.LiveMapDisplay("2025-reefscape")
+            map_display.load()
+            map_display.set_robot_size(0.74, 0.74)
         
-        for camera, at_detector, stream in zip(cameras, at_detectors, streaming_tasks):
-            frame_data = camera.get_frame()
-            if frame_data is not None and frame_data.frame is not None:
-                frame = frame_data.frame
-                camera.update_network_tables(tables)
-                detections = at_detector(frame_data)
-                detected_tags.extend(detections)
-                stream.add_input(frame_data)
-                if args.display:
-                    frame = display_apriltag_boxes(frame, detections)
-                    frame = display_apriltag_pose(frame, detections)
-                    cv2.imshow(f"Camera {camera.camera_id}", frame)
-        
-        if args.map and map_display:
-            map_display.set_detected_tags(detected_tags)
-            map_display.display()
+        while running:
+            current_time = update_system_metrics(tables)
+            detected_tags = []
             
-        if cv2.waitKey(1) == ord('q'):
-            running = False
+            for camera, at_detector, stream in zip(cameras, at_detectors, streaming_tasks):
+                frame_data = camera.get_frame()
+                if frame_data is not None and frame_data.frame is not None:
+                    try:
+                        frame = frame_data.frame
+                        camera.update_network_tables(tables)
+                        detections = at_detector(frame_data)
+                        detected_tags.extend(detections)
+                        stream.add_input(frame_data)
+                        if args.display:
+                            frame = display_apriltag_boxes(frame, detections)
+                            frame = display_apriltag_pose(frame, detections)
+                            cv2.imshow(f"Camera {camera.camera_id}", frame)
+                    except Exception as e:
+                        #_logging.error(f"Error processing frame {e}")
+                        traceback.print_exc()
+                        #tmp = traceback.format_exc()
+                        #_logging.error(tmp)
             
-        time.sleep(max(0, 0.033 - (time.time() - current_time)))
+            if args.map and map_display:
+                map_display.set_detected_tags(detected_tags)
+                map_display.display()
+                
+            if cv2.waitKey(1) == ord('q'):
+                running = False
+                
+            time.sleep(max(0, 0.033 - (time.time() - current_time)))
 
 def main() -> None:
     try:
