@@ -165,13 +165,15 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
             current_time = update_system_metrics(tables)
             detected_tags = []
             
+            best_camera_direction = None
+            best_camera_location = None
             for camera, at_detector, stream in zip(cameras, at_detectors, streaming_tasks):
                 frame_data = camera.get_frame()
                 if frame_data is not None and frame_data.frame is not None:
                     try:
                         frame = frame_data.frame
                         camera.update_network_tables(tables)
-                        detections = at_detector(frame_data)
+                        detections, best_camera_location, best_camera_direction = at_detector(frame_data)
                         detected_tags.extend(detections)
                         stream.add_input(frame_data)
                         if args.display:
@@ -186,9 +188,12 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
                     _logging.error("Not connected to NetworkTables")
 
             if args.map and map_display:
-                map_display.set_detected_tags(detected_tags)
-                map_display.display()
-                
+                try:
+                    map_display.set_detected_tags(detected_tags)
+                    map_display.display(best_camera_location, best_camera_direction)
+                except Exception as e:
+                    traceback.print_exc()
+                                    
             if cv2.waitKey(1) == ord('q'):
                 running = False
                 

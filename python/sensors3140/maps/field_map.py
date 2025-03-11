@@ -45,6 +45,18 @@ class FieldMap:
 
     def get_all_tags(self) -> List[int]:
         return list(self.tag_data.keys())
+    
+    def get_tag_corners_in_field_coordinates(self, id: int, tag_size=0.1651) -> np.ndarray:
+        corners_homogeneous = np.array([
+            [-tag_size/2, -tag_size/2, 0, 1],
+            [tag_size/2, -tag_size/2, 0, 1],
+            [tag_size/2, tag_size/2, 0, 1],
+            [-tag_size/2, tag_size/2, 0, 1]
+        ]).T
+        tag_transform = self.get_tag_transform(id)
+        corners = np.dot(tag_transform, corners_homogeneous)
+        return corners[:3, :].T
+
 
 def get_map(game_id: str) -> FieldMap:
     if game_id not in GLOBAL_MAP_STORAGE:

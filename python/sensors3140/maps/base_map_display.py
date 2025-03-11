@@ -164,7 +164,7 @@ class BaseMapDisplay:
             cv2.circle(img, (pixel_x, pixel_y), 15, camera_color, -1)
             cv2.putText(img, f"{camera_id}", (pixel_x, pixel_y), cv2.FONT_HERSHEY_SIMPLEX, 1, camera_color, 2)
 
-    def display(self) -> None:
+    def display(self,best_camera_location=None, best_camera_direction=None) -> None:
         """
         Display the field map with the robot and camera positions
         """
@@ -186,6 +186,9 @@ class BaseMapDisplay:
             tag_transform = self.map_data.get_tag_transform(tag_id)
             tag_location = np.matmul(tag_transform, np.array([[0.0], [0.0], [0.0], [1.0]]))
             tag_direction = np.matmul(tag_transform, np.array([[0.0], [0.0], [-1.0], [1.0]]))
+            tag_left = np.matmul(tag_transform, np.array([[-0.165], [0.0], [0.0], [1.0]]))
+            tag_right = np.matmul(tag_transform, np.array([[0.165], [0.0], [0.0], [1.0]]))
+                                 
             if camera_pose is not None:
                 camera_location = np.matmul(camera_pose, np.array([[0.0], [0.0], [0.0], [1.0]]))
                 camera_direction = np.matmul(camera_pose, np.array([[0.0], [0.0], [1.0], [1.0]]))
@@ -199,17 +202,34 @@ class BaseMapDisplay:
                 cv2.circle(img, (int(cam_x), int(cam_y)), 10, camera_color, -1)
                 cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), camera_color, 3)
                 cv2.line(img, (int(pixel_x), int(pixel_y)), (int(cam_x), int(cam_y)), camera_color, 1)
+            
             if distance is not None:
                 cv2.circle(img, (int(pixel_x), int(pixel_y)), int(distance), (88, 88, 88), 2)
             tag_x, tag_y = self.real_world_to_pixel((tag_location[0], tag_location[1]))
             dir_x, dir_y = self.real_world_to_pixel((tag_direction[0], tag_direction[1]))
             cv2.line(img, (int(tag_x), int(tag_y)), (int(dir_x), int(dir_y)), color, 1)
             cv2.circle(img, (int(tag_x), int(tag_y)), 5, color, -1)
+
+            # write the tag location to the csv file
+
+            tag_left_x, tag_left_y = self.real_world_to_pixel((tag_left[0], tag_left[1]))
+            tag_right_x, tag_right_y = self.real_world_to_pixel((tag_right[0], tag_right[1]))
+            #purple
+            reef_color = (255, 0, 255)
+            cv2.circle(img, (int(tag_left_x), int(tag_left_y)), 5, reef_color, -1)
+            cv2.circle(img, (int(tag_right_x), int(tag_right_y)), 5, reef_color, -1)
             text_size = cv2.getTextSize(str(tag_id), cv2.FONT_HERSHEY_SIMPLEX, 1, 2)[0]
             text_x = int(pixel_x - text_size[0] / 2)
             text_y = int(pixel_y - text_size[1] / 2)
             text_y += text_size[1] + 20 if text_y < self.image_height / 2 else -text_size[1] - 10
             cv2.putText(img, str(tag_id), (text_x, text_y), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2, cv2.LINE_AA)
+
+        if best_camera_location is not None and best_camera_direction is not None:
+            cam_x, cam_y = self.real_world_to_pixel((best_camera_location[0], best_camera_location[1]))
+            cam_dir_x, cam_dir_y = self.real_world_to_pixel((best_camera_direction[0], best_camera_direction[1]))
+            cv2.circle(img, (int(cam_x), int(cam_y)), 10, (255, 0, 255), -1)
+            cv2.line(img, (int(cam_x), int(cam_y)), (int(cam_dir_x), int(cam_dir_y)), (255, 0, 255), 3)
+
         window_name = 'AprilTag Overlay'
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.imshow(window_name, img)
