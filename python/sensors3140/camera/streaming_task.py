@@ -7,6 +7,7 @@ from sensors3140.task_base import TaskBase, TaskPriority
 from sensors3140.tables.network_tables import NetworkTablesManager
 import sensors3140
 import logging
+import traceback
 
 # Track the currently assigned port to avoid port conflicts between multiple streams
 CURRENT_PORT = 8081
@@ -145,6 +146,7 @@ class StreamingTask(TaskBase):
             self.frames_streamed += 1
             return True
         except Exception as e:
+            traceback.print_exc()
             self.logger.error(f"Error streaming frame: {e}")
             self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", -1.0)
             return False

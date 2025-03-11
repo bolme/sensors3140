@@ -4,6 +4,7 @@ import logging
 import time
 import socket
 import numpy as np
+import traceback
 
 class NetworkTablesManager:
 
@@ -42,6 +43,7 @@ class NetworkTablesManager:
             NetworkTables.initialize(self.robot_ip)
             self.logger.info(f"Attempting connection to {self.robot_ip}")
         except Exception as e:
+            traceback.print_exc()
             self.logger.error(f"Connection failed: {e}")
     
     def _monitor_connection(self):
@@ -76,7 +78,7 @@ class NetworkTablesManager:
         '''
         Returns True if connected to the robot
         '''
-        return self.connected
+        return NetworkTables.isConnected()
     
     def shutdown(self):
         self.running = False
@@ -202,6 +204,7 @@ def main():
         print("\nShutting down...")
         nt.shutdown()
     except Exception as e:
+        traceback.print_exc()
         print(f"Error: {e}")
         nt.shutdown()
 

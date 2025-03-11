@@ -179,11 +179,12 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
                             frame = display_apriltag_pose(frame, detections)
                             cv2.imshow(f"Camera {camera.camera_id}", frame)
                     except Exception as e:
-                        #_logging.error(f"Error processing frame {e}")
                         traceback.print_exc()
-                        #tmp = traceback.format_exc()
-                        #_logging.error(tmp)
-            
+
+                if not tables.is_connected():
+                    print("Not connected to NetworkTables")
+                    _logging.error("Not connected to NetworkTables")
+
             if args.map and map_display:
                 map_display.set_detected_tags(detected_tags)
                 map_display.display()

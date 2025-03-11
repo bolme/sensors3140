@@ -11,7 +11,7 @@ from typing import List, Dict, Tuple, Any
 
 POSITION_QUALITY_THRESHOLD = 0.1
 POSITION_QUALITY_MIN_ANGLE_LIMIT = np.pi*5./180. # seems like a good value
-DISTANCE_HALF_LIMIT = 5.0 # meters
+DISTANCE_HALF_LIMIT = 4.0 # meters
 
 _logger = logging.getLogger(__name__)
 

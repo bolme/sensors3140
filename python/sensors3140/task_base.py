@@ -7,8 +7,10 @@ import queue
 import logging
 import os
 import enum
+import traceback
 from typing import Optional, Any
 from abc import ABC, abstractmethod
+import traceback
 
 class TaskPriority(enum.IntEnum):
     LOWEST = 19
@@ -53,11 +55,13 @@ class TaskBase(ABC):
 
     def _set_thread_priority(self):
         try:
-            os.sched_setpriority(0, self.priority)
+            # TODO: This does not work
             self.logger.info(f"Set {self.name} priority to {self.priority}")
         except PermissionError:
+            traceback.print_exc()
             self.logger.warning(f"Permission denied setting priority {self.priority}")
         except Exception as e:
+            traceback.print_exc()
             self.logger.error(f"Failed to set priority: {e}")
 
 
@@ -74,6 +78,7 @@ class TaskBase(ABC):
                 continue
             except Exception as e:
                 self.logger.error(f"Error processing {self.name} data: {e}")
+                traceback.print_exc()
 
 
     @abstractmethod

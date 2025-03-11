@@ -6,6 +6,7 @@ import numpy as np
 import logging
 import json
 import os
+import traceback
 from sensors3140.apriltags.detector import AprilTagDetector
 from sensors3140.tables.network_tables import NetworkTablesManager
 
@@ -135,6 +136,7 @@ class Camera:
             self._start_capture()
             
         except Exception as e:
+            traceback.print_exc()
             _logger.error(f"Failed to initialize camera {self.camera_id}: {str(e)}")
             raise
 
@@ -222,6 +224,7 @@ class Camera:
                     self._compute_frame_stats(img)
     
             except Exception as e:
+                traceback.print_exc()
                 _logger.error(f"Error in capture thread for {self.name}: {str(e)}")
                 time.sleep(1.0)  # Wait before trying again
                 
@@ -247,6 +250,7 @@ class Camera:
     
             self.frame_stats = stats
         except Exception as e:
+            traceback.print_exc()
             _logger.warning(f"Failed to compute frame stats: {str(e)}")
             self.frame_stats = [-1, -1, -1, -1, -1, -1]
 
@@ -384,7 +388,9 @@ def load_cameras_from_config_directory(config_dir: str = None) -> dict:
                 camera = create_camera_from_config(config)
                 cameras[camera.name] = camera
         except Exception as e:
+            traceback.print_exc()
             _logger.error(f"Failed to load camera from {file_path}: {str(e)}")
+
 
     if not cameras:
         _logger.warning("No cameras were successfully loaded from configuration")
@@ -451,6 +457,7 @@ def create_camera_from_config(config: dict) -> Camera:
         
         return camera
     except Exception as e:
+        traceback.print_exc()
         _logger.error(f"Failed to create camera {camera_name}: {str(e)}")
         raise
 
@@ -470,6 +477,7 @@ if __name__ == "__main__":
                 default_camera = Camera(camera_id=0, name="Default")
                 cameras = {"Default": default_camera}
             except Exception as e:
+                traceback.print_exc()
                 _logger.error(f"Could not initialize default camera: {e}")
                 exit(1)
         
@@ -496,4 +504,5 @@ if __name__ == "__main__":
         cv2.destroyAllWindows()
         
     except Exception as e:
+        traceback.print_exc()
         _logger.error(f"Error in main: {str(e)}")
