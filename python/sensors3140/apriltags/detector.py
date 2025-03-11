@@ -479,7 +479,7 @@ class AprilTagDetector:
 
         # publish the best camera position
 
-        if isinstance(best_location_quality,float) and best_location_quality >= POSITION_QUALITY_THRESHOLD:
+        if best_compution_method == 'multitag' and isinstance(best_location_quality,float) and best_location_quality >= POSITION_QUALITY_THRESHOLD:
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_position", best_camera_position_field.flatten())
             self.table.setDoubleArray(f"sensors3140/apriltags/camera{self.camera_id}/camera_direction", best_camera_direction_field.flatten())
             self.table.setDouble(f"sensors3140/apriltags/camera{self.camera_id}/camera_position_tag", best_camera_tag_id)
