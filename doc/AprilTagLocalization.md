@@ -11,3 +11,5 @@ Notes:
 **Lighting:** the quality of the lighting in the scene. The tag detection algorithm is sensitive to lighting conditions. (Less Important)
 
 **Motion Blur:** the amount of motion blur in the image. The tag detection algorithm is sensitive to motion blur. (Less Important)
+
+### Single Tag vs Multi Tag

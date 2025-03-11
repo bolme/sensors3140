@@ -193,7 +193,7 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
                     map_display.display(best_camera_location, best_camera_direction)
                 except Exception as e:
                     traceback.print_exc()
-                                    
+
             if cv2.waitKey(1) == ord('q'):
                 running = False
                 
@@ -214,6 +214,8 @@ def main() -> None:
         process_camera_frames(cameras, at_detectors, streaming_tasks, tables, args)
     except KeyboardInterrupt:
         _logging.info("Program interrupted by user")
+    except:
+        traceback.print_exc()
     finally:
         # Clean up resources
         _logging.info("Shutting down...")
