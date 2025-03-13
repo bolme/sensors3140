@@ -11,6 +11,7 @@ import traceback
 from typing import Optional, Any
 from abc import ABC, abstractmethod
 import traceback
+import sensors3140
 
 class TaskPriority(enum.IntEnum):
     LOWEST = 19
@@ -58,11 +59,9 @@ class TaskBase(ABC):
             # TODO: This does not work
             self.logger.info(f"Set {self.name} priority to {self.priority}")
         except PermissionError:
-            traceback.print_exc()
-            self.logger.warning(f"Permission denied setting priority {self.priority}")
+            sensors3140.publish_error_message(f"Failed to set priority.")
         except Exception as e:
-            traceback.print_exc()
-            self.logger.error(f"Failed to set priority: {e}")
+            sensors3140.publish_error_message(e)
 
 
     def _run_loop(self):
@@ -77,9 +76,7 @@ class TaskBase(ABC):
             except queue.Empty:
                 continue
             except Exception as e:
-                self.logger.error(f"Error processing {self.name} data: {e}")
-                traceback.print_exc()
-
+                sensors3140.publish_error_message(e)
 
     @abstractmethod
     def process(self, data: Any) -> Optional[Any]:

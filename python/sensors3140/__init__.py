@@ -8,8 +8,9 @@ import socket
 import time
 import logging
 import os
-
+import traceback
 from sensors3140.camera import Camera
+from sensors3140.tables.network_tables import NetworkTablesManager
 
 # Config directory <home>/sensors3140/
 # This is the directory where configuration files are stored.
@@ -38,27 +39,6 @@ logger.addHandler(handler)
 logging.info("Starting sensors3140")
 logging.info("Version: %s", __version__)
 logging.info("Date: %s", time.strftime("%Y-%m-%d %H:%M:%S %Z"))
-
-
-def connect_to_camera(camera_id):
-    import cv2
-
-    # load the camera configuration
-    camera_config = load_camera_config(camera_id)
-    if camera_config is None:
-        print(f"Camera {camera_id} not configured.")
-        return None
-    
-    # Create the camera object
-    camera = cv2.VideoCapture(camera_id)
-    if not camera.isOpened():
-        print(f"Failed to open camera {camera_id}")
-        return None
-    
-    # Set the camera parameters
-    camera.set(cv2.CAP_PROP_FRAME_WIDTH, camera_config['frame_size'][0])
-
-
 
 
 
@@ -98,6 +78,27 @@ def get_network_table_connection():
     if not inst.isConnected():
         print("Failed to connect to NetworkTables")
         return None
+    
+def publish_error_message(exc: Exception):
+    """
+    Publish an error message to NetworkTables.  Extra safety checking to avoid crashing due to reporting the error.
+    """
+    try:
+        traceback.print_exc()
+        tables = NetworkTablesManager()
+        tables.setString("sensors3140/error_type", str(type(exc)))
+        tables.setString("sensors3140/error_message", str(exc))
+        tables.setDouble("sensors3140/error_timestamp", time.time())
+        trace_back_string = traceback.format_exc()
+        tables.setString("sensors3140/error_traceback", trace_back_string)
+        error_count = tables.getDouble("sensors3140/error_count", 0)
+        tables.setDouble("sensors3140/error_count", error_count + 1)
+    except Exception as e:
+        try:
+            print(f"Failed to publish error message: {type(e)}: {e}")
+        except:
+            pass
+
 
 if __name__ == "__main__":
     import ntcore

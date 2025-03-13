@@ -181,7 +181,7 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
                             frame = display_apriltag_pose(frame, detections)
                             cv2.imshow(f"Camera {camera.camera_id}", frame)
                     except Exception as e:
-                        traceback.print_exc()
+                        sensors3140.publish_error_message(e)
 
                 if not tables.is_connected():
                     print("Not connected to NetworkTables")
@@ -192,7 +192,7 @@ def process_camera_frames(cameras: List[sensors3140.Camera], at_detectors: List[
                     map_display.set_detected_tags(detected_tags)
                     map_display.display(best_camera_location, best_camera_direction)
                 except Exception as e:
-                    traceback.print_exc()
+                    sensors3140.publish_error_message(e)
 
             if cv2.waitKey(1) == ord('q'):
                 running = False
@@ -205,8 +205,17 @@ def main() -> None:
         tables = initialize_network_tables()
         cameras = initialize_cameras(tables)
         camera_ids = [camera.camera_id for camera in cameras]
-        tables.setDoubleArray("sensors3140/camera_ids", camera_ids)
         time.sleep(3)
+
+        tables.setDoubleArray("sensors3140/camera_ids", camera_ids)
+
+        try:
+            restart_count = tables.getDouble("sensors3140/restart_count", -1)
+            tables.setDouble("sensors3140/restart_count", restart_count + 1)
+            tables.setDouble("sensors3140/restart_timestamp", time.time())
+        except:
+            print("Failed to set restart count")
+
         at_detectors = [AprilTagDetector(camera.camera_id, camera_params=camera.camera_params, dist_coeff=camera.dist_coeffs) for camera in cameras]
         streaming_tasks = [StreamingTask(camera.camera_id) for camera in cameras]
         for task in streaming_tasks:
@@ -215,7 +224,7 @@ def main() -> None:
     except KeyboardInterrupt:
         _logging.info("Program interrupted by user")
     except:
-        traceback.print_exc()
+        sensors3140.publish_error_message(Exception("Unhandled exception"))
     finally:
         # Clean up resources
         _logging.info("Shutting down...")

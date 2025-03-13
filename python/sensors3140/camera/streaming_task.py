@@ -109,7 +109,6 @@ class StreamingTask(TaskBase):
         # Update the current frame timestamp and ID in NetworkTables
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/timestamp", frame_data.timestamp)
         self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/frame_id", frame_data.frame_id)
-
         if frame_data is None:
             return None
 
@@ -138,6 +137,15 @@ class StreamingTask(TaskBase):
         if frame.shape[1] != self.width or frame.shape[0] != self.height:
             frame = cv2.resize(frame, (self.width, self.height))
 
+        # Add vertical lines to the frame for visual reference
+        try:
+            x_positions = self.table.getDoubleArray("sensors3140/streams/camera{self.sensor_id}/vertical_lines", [140,180])
+            for x in x_positions:
+                cv2.line(frame, (int(x),int(frame.shape[0]/4)), (int(x),int(frame.shape[0]*3/4) ), (0, 0, 255), 1)
+        except:
+            #raise
+            pass
+    
         try:
             # Push the frame to the MJPEG stream
             self.camera.putFrame(frame)
@@ -146,9 +154,12 @@ class StreamingTask(TaskBase):
             self.frames_streamed += 1
             return True
         except Exception as e:
-            traceback.print_exc()
+            sensors3140.publish_error_message(e)
             self.logger.error(f"Error streaming frame: {e}")
-            self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", -1.0)
+            try:
+                self.table.setDouble(f"sensors3140/streams/camera{self.sensor_id}/latency", -1.0)
+            except:
+                pass
             return False
 
     def stop(self):

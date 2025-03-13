@@ -5,6 +5,7 @@ import time
 import socket
 import numpy as np
 import traceback
+import sensors3140
 
 class NetworkTablesManager:
 
@@ -204,7 +205,7 @@ def main():
         print("\nShutting down...")
         nt.shutdown()
     except Exception as e:
-        traceback.print_exc()
+        sensors3140.publish_error_message(e)
         print(f"Error: {e}")
         nt.shutdown()
 
