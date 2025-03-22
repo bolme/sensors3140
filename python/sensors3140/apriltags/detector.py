@@ -14,7 +14,7 @@ POSITION_QUALITY_MIN_ANGLE = np.pi*10./180. # seems like a good value
 POSITION_QUALITY_MAX_ANGLE = np.pi*70./180. # seems like a good value
 DISTANCE_HALF_LIMIT = 4.0 # meters
 DISTANCE_LIMIT = 5.0 # meters
-SINGLE_TAG_DISTANCE_LIMIT = 3.0 # meters
+SINGLE_TAG_DISTANCE_LIMIT = 2.0 # meters
 
 _logger = logging.getLogger(__name__)
 

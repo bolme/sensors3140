@@ -149,20 +149,24 @@ class BaseMapDisplay:
             tag_color = (0, 255, 0)
             pixel_x, pixel_y = self.real_world_to_pixel((x, y))
 
-            tag_x, tag_y, tag_z = self.map_data.get_tag_location(tag_id)
-            tag_x, tag_y = self.real_world_to_pixel((tag_x, tag_y))
-            
-            if tag_id is not None:
-                # draw a line to the tag location
-                cv2.line(img, (pixel_x, pixel_y), (tag_x, tag_y), tag_color, 3)
-                # draw a circle of radius tag_distance
-                if tag_distance is not None:
-                    cv2.circle(img, (tag_x, tag_y), int(tag_distance / self.field_length * self.image_width), tag_color, 2)
-                    # print the tag distance at the tag location
-                    cv2.putText(img, f"{tag_distance:.2f}m", (tag_x, tag_y), cv2.FONT_HERSHEY_SIMPLEX, 1, tag_color, 2)
-            # draw the camera location
-            cv2.circle(img, (pixel_x, pixel_y), 15, camera_color, -1)
-            cv2.putText(img, f"{camera_id}", (pixel_x, pixel_y), cv2.FONT_HERSHEY_SIMPLEX, 1, camera_color, 2)
+            try:
+                tag_x, tag_y, tag_z = self.map_data.get_tag_location(tag_id)
+                tag_x, tag_y = self.real_world_to_pixel((tag_x, tag_y))
+                
+                if tag_id is not None:
+                    # draw a line to the tag location
+                    cv2.line(img, (pixel_x, pixel_y), (tag_x, tag_y), tag_color, 3)
+                    # draw a circle of radius tag_distance
+                    if tag_distance is not None:
+                        cv2.circle(img, (tag_x, tag_y), int(tag_distance / self.field_length * self.image_width), tag_color, 2)
+                        # print the tag distance at the tag location
+                        cv2.putText(img, f"{tag_distance:.2f}m", (tag_x, tag_y), cv2.FONT_HERSHEY_SIMPLEX, 1, tag_color, 2)
+                # draw the camera location
+                cv2.circle(img, (pixel_x, pixel_y), 15, camera_color, -1)
+                cv2.putText(img, f"{camera_id}", (pixel_x, pixel_y), cv2.FONT_HERSHEY_SIMPLEX, 1, camera_color, 2)
+            except:
+                print(f"WARNING: Error drawing camera position: {tag_id}")
+                pass
 
     def display(self,best_camera_location=None, best_camera_direction=None) -> None:
         """
